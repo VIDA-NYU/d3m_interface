@@ -5,7 +5,7 @@ import subprocess
 import pandas as pd
 import datetime
 from os.path import join, split, isfile
-from d3m_interface.client import BasicTA3
+from d3m_interface.basic_ta3 import BasicTA3
 
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ class Automl:
         self.output_folder = output_folder
         self.ta2 = ta2
         self.pipelines = []
-        self.client = None
+        self.ta3 = None
         self.container = None
         self.dataset = None
         self.leaderboard = None
@@ -37,11 +37,11 @@ class Automl:
         dataset_train_path = '/input/dataset/TRAIN/dataset_TRAIN/datasetDoc.json'
         problem_path = join(dataset_path, 'problem_TRAIN/problemDoc.json')
         start_time = datetime.datetime.utcnow()
-        pipelines = self.client.do_search(dataset_train_path, problem_path, time_bound)
+        pipelines = self.ta3.do_search(dataset_train_path, problem_path, time_bound)
 
         for pipeline in pipelines:
             end_time = datetime.datetime.utcnow()
-            pipeline_json_id = self.client.do_describe(pipeline['id'])
+            pipeline_json_id = self.ta3.do_describe(pipeline['id'])
 
             with open(join(self.output_folder, 'pipelines_searched', '%s.json' % pipeline_json_id)) as fin:
                 pipeline_json = json.load(fin)
@@ -75,7 +75,7 @@ class Automl:
             return
 
         print('Training model...')
-        fitted_solution_id = self.client.do_train(solution_id, dataset_train_path)
+        fitted_solution_id = self.ta3.do_train(solution_id, dataset_train_path)
         fitted_solution = None  # TODO: Call to LoadFittedSolution
         model = {fitted_solution_id: fitted_solution}
         print('Training finished!')
@@ -86,7 +86,7 @@ class Automl:
         dataset_test_path = '/input/dataset/TEST/dataset_TEST/datasetDoc.json'
         fitted_solution_id = list(model.keys())[0]
         print('Testing model...')
-        tested_solution_path = self.client.do_test(fitted_solution_id, dataset_test_path)
+        tested_solution_path = self.ta3.do_test(fitted_solution_id, dataset_test_path)
         print('Testing finished!')
         tested_solution_path = tested_solution_path.replace('file:///output/', '')
         predictions = pd.read_csv(join(self.output_folder, tested_solution_path))
@@ -194,14 +194,14 @@ class Automl:
         time.sleep(4)  # Wait for TA2
         while True:
             try:
-                self.client = BasicTA3()
-                self.client.do_hello()
+                self.ta3 = BasicTA3()
+                self.ta3.do_hello()
                 print('TA2 initialized!')
                 break
             except:
-                if self.client.channel is not None:
-                    self.client.channel.close()
-                    self.client = None
+                if self.ta3.channel is not None:
+                    self.ta3.channel.close()
+                    self.ta3 = None
 
                 time.sleep(4)
 
