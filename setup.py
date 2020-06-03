@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="d3m_interface",
-    version="0.1.0",
+    version="0.1.1",
     author="Roque Lopez",
     author_email="rlopez@nyu.edu",
     description="Library to use D3M AutoML Systems",
@@ -20,8 +20,9 @@ setuptools.setup(
     ],
     install_requires=[
         'gitdb2==2.0.6',
-        'd3m @ git+https://gitlab.com/datadrivendiscovery/d3m.git@v2020.1.9',
-        'ta3ta2-api @ git+https://gitlab.com/datadrivendiscovery/ta3ta2-api.git@31b8d2573e702aed3d70fa8192f9ef9b006ccd97',
+        'grpcio',
+        'grpcio-tools',
+        'd3m==2020.1.9'
     ],
     python_requires='>=3.6',
 )

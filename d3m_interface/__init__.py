@@ -1,1 +1,1 @@
-from .d3m_interface import Automl
+from .automl_interface import Automl

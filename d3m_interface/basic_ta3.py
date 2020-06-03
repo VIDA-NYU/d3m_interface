@@ -1,11 +1,11 @@
 import grpc
 import logging
-import ta3ta2_api.core_pb2 as pb_core
-import ta3ta2_api.core_pb2_grpc as pb_core_grpc
-import ta3ta2_api.value_pb2 as pb_value
+import d3m_interface.ta3ta2_api.core_pb2 as pb_core
+import d3m_interface.ta3ta2_api.core_pb2_grpc as pb_core_grpc
+import d3m_interface.ta3ta2_api.value_pb2 as pb_value
 from d3m.metadata.problem import parse_problem_description, PerformanceMetric
-from ta3ta2_api.utils import encode_problem_description, encode_performance_metric, decode_performance_metric, \
-    decode_value
+from d3m_interface.ta3ta2_api.utils import encode_problem_description, encode_performance_metric, \
+    decode_performance_metric, decode_value
 
 
 logger = logging.getLogger(__name__)
@@ -60,11 +60,12 @@ class BasicTA3:
                         if metric == target_metric:
                             score = decode_value(metric_score.value)['value']
                             scores.append(score)
-                avg_score = round(sum(scores) / len(scores), 5)
-                normalized_score = PerformanceMetric[target_metric.name].normalize(avg_score)
+                if len(scores) > 0:
+                    avg_score = round(sum(scores) / len(scores), 5)
+                    normalized_score = PerformanceMetric[target_metric.name].normalize(avg_score)
 
-                yield {'id': pipeline_id, 'score': avg_score, 'normalized_score': normalized_score,
-                       'metric': target_metric.name.lower()}
+                    yield {'id': pipeline_id, 'score': avg_score, 'normalized_score': normalized_score,
+                           'metric': target_metric.name.lower()}
 
     def do_score(self, problem, solutions, dataset_path):
         metrics = []
