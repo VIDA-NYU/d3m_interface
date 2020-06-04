@@ -13,7 +13,7 @@ pd.set_option('display.max_colwidth', -1)
 
 TA2_DOCKER_IMAGES = {'NYU': 'registry.gitlab.com/vida-nyu/d3m/ta2:latest', 'TAMU': 'dmartinez05/tamuta2:latest'}
 
-IGNORE_SUMMARY_PRIMITIVES = {'d3m.pri mitives.data_transformation.construct_predictions.Common',
+IGNORE_SUMMARY_PRIMITIVES = {'d3m.primitives.data_transformation.construct_predictions.Common',
                              'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
                              'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
                              'd3m.primitives.data_transformation.denormalize.Common',
