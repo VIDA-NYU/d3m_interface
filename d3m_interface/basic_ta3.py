@@ -1,11 +1,11 @@
 import grpc
 import logging
-import d3m_interface.ta3ta2_api.core_pb2 as pb_core
-import d3m_interface.ta3ta2_api.core_pb2_grpc as pb_core_grpc
-import d3m_interface.ta3ta2_api.value_pb2 as pb_value
+import ta3ta2_api.core_pb2 as pb_core
+import ta3ta2_api.core_pb2_grpc as pb_core_grpc
+import ta3ta2_api.value_pb2 as pb_value
 from d3m.metadata.problem import parse_problem_description, PerformanceMetric
-from d3m_interface.ta3ta2_api.utils import encode_problem_description, encode_performance_metric, \
-    decode_performance_metric, decode_value
+from ta3ta2_api.utils import encode_problem_description, encode_performance_metric, decode_performance_metric, \
+    decode_value
 
 
 logger = logging.getLogger(__name__)
@@ -34,10 +34,11 @@ class BasicTA3:
             user_agent='basicta3_stub',
             version=version,
             time_bound_search=time_bound,
+            priority=10,
             rank_solutions_limit=pipelines_limit,
-            allowed_value_types=[pb_value.CSV_URI],
+            allowed_value_types=['RAW'],
             problem=encode_problem_description(problem),
-            template=pipeline_template,
+
             inputs=[pb_value.Value(
                 dataset_uri='file://%s' % dataset_path,
             )],
@@ -65,7 +66,7 @@ class BasicTA3:
                     normalized_score = PerformanceMetric[target_metric.name].normalize(avg_score)
 
                     yield {'id': pipeline_id, 'score': avg_score, 'normalized_score': normalized_score,
-                           'metric': target_metric.name.lower()}
+                           'metric': target_metric.name.lower(), 'search_id': str(search.search_id)}
 
     def do_score(self, problem, solutions, dataset_path):
         metrics = []
@@ -83,7 +84,7 @@ class BasicTA3:
                     performance_metrics=metrics,
                     users=[],
                     configuration=pb_core.ScoringConfiguration(
-                        method=pb_core.EvaluationMethod.Value('K_FOLD'),
+                        method='K_FOLD',
                         folds=4,
                         train_test_ratio=0.75,
                         shuffle=True,
@@ -110,7 +111,7 @@ class BasicTA3:
                     dataset_uri='file://%s' % dataset_path,
                 )],
                 expose_outputs=[],
-                expose_value_types=[pb_value.CSV_URI],
+                expose_value_types=['CSV_URI'],
                 users=[],
             ))
             results = self.core.GetFitSolutionResults(
@@ -135,7 +136,7 @@ class BasicTA3:
                     dataset_uri='file://%s' % dataset_path,
                 )],
                 expose_outputs=[],
-                expose_value_types=[pb_value.CSV_URI],
+                expose_value_types=['CSV_URI'],
                 users=[],
             ))
             results = self.core.GetProduceSolutionResults(

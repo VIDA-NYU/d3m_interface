@@ -11,7 +11,8 @@ logging.basicConfig(level=logging.ERROR, format='%(asctime)s %(levelname)s %(mes
 logger = logging.getLogger(__name__)
 pd.set_option('display.max_colwidth', -1)
 
-TA2_DOCKER_IMAGES = {'NYU': 'registry.gitlab.com/vida-nyu/d3m/ta2:latest', 'TAMU': 'dmartinez05/tamuta2:latest'}
+TA2_DOCKER_IMAGES = {'NYU': 'registry.gitlab.com/vida-nyu/d3m/ta2:latest', 'TAMU': 'dmartinez05/tamuta2:latest',
+                     'CMU': 'registry.datadrivendiscovery.org/sheath/cmu-ta2:latest'}
 
 IGNORE_SUMMARY_PRIMITIVES = {'d3m.primitives.data_transformation.construct_predictions.Common',
                              'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
@@ -41,9 +42,10 @@ class Automl:
 
         for pipeline in pipelines:
             end_time = datetime.datetime.utcnow()
+            # TODO: do_describe should return the whole pipeline, but there is an issue in decode_pipeline_description
             pipeline_json_id = self.ta3.do_describe(pipeline['id'])
 
-            with open(join(self.output_folder, 'pipelines_searched', '%s.json' % pipeline_json_id)) as fin:
+            with open(join(self.output_folder, pipeline['search_id'], 'pipelines_searched', '%s.json' % pipeline_json_id)) as fin:
                 pipeline_json = json.load(fin)
                 summary_pipeline = self.get_summary_pipeline(pipeline_json)
                 pipeline['json_representation'] = pipeline_json
@@ -96,9 +98,11 @@ class Automl:
     def test_score(self, solution_id, dataset_path_test):
         #  TODO: Use TA2TA3 API to score
         pipeline_id = None
+        search_id = None
         for pipeline in self.pipelines:
             if solution_id == pipeline['id']:
                 pipeline_id = pipeline['json_representation']['id']
+                search_id = pipeline['search_id']
                 break
 
         dataset_path = '/input/dataset/'
@@ -108,7 +112,7 @@ class Automl:
         if not isfile(dataset_score_path):
             dataset_score_path = join(dataset_path, 'SCORE/dataset_TEST/datasetDoc.json')
         problem_path = join(dataset_path, 'TRAIN/problem_TRAIN/problemDoc.json')
-        pipeline_path = join('/output/', 'pipelines_searched', '%s.json' % pipeline_id)
+        pipeline_path = join('/output/', search_id, 'pipelines_searched', '%s.json' % pipeline_id)
         score_pipeline_path = join('/output/', 'fit_score_%s.csv' % pipeline_id)
         metric = None
         score = None
@@ -229,7 +233,7 @@ if __name__ == '__main__':
     train_dataset = '/Users/rlopez/D3M/datasets/seed_datasets_current/185_baseball/TRAIN'
     test_dataset = '/Users/rlopez/D3M/datasets/seed_datasets_current/185_baseball/TEST'
 
-    automl = Automl(output_path)
+    automl = Automl(output_path, 'CMU')
     pipelines = automl.search_pipelines(train_dataset, time_bound=1)
     model = automl.train(pipelines[0]['id'])
     predictions = automl.test(model, test_dataset)
