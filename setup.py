@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="d3m_interface",
-    version="0.1.1",
+    version="0.1.3",
     author="Roque Lopez",
     author_email="rlopez@nyu.edu",
     description="Library to use D3M AutoML Systems",
@@ -22,7 +22,8 @@ setuptools.setup(
         'gitdb2==2.0.6',
         'grpcio',
         'grpcio-tools',
-        'd3m==2020.1.9'
+        'ta3ta2-api==2020.6.2',
+        'd3m==2020.5.18'
     ],
     python_requires='>=3.6',
 )
