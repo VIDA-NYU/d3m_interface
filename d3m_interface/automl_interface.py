@@ -190,6 +190,7 @@ class Automl:
                 '-e', 'D3MRUN=ta2ta3',
                 '-e', 'D3MINPUTDIR=/input',
                 '-e', 'D3MOUTPUTDIR=/output',
+                '-e', 'D3MSTATICDIR=/output',  # TODO: Temporal assignment for D3MSTATICDIR env variable
                 '-v', '%s:/input/dataset/' % dataset_path,
                 '-v', '%s:/output' % output_path,
                 TA2_DOCKER_IMAGES[self.ta2]
@@ -226,18 +227,4 @@ class Automl:
                 primitives.append(primitive_name)
 
         return ', '.join(primitives)
-
-
-if __name__ == '__main__':
-    output_path = '/Users/rlopez/D3M/tmp/'
-    train_dataset = '/Users/rlopez/D3M/datasets/seed_datasets_current/185_baseball/TRAIN'
-    test_dataset = '/Users/rlopez/D3M/datasets/seed_datasets_current/185_baseball/TEST'
-
-    automl = Automl(output_path, 'CMU')
-    pipelines = automl.search_pipelines(train_dataset, time_bound=1)
-    model = automl.train(pipelines[0]['id'])
-    predictions = automl.test(model, test_dataset)
-    automl.create_profiler_inputs()
-    score = automl.test_score(pipelines[0]['id'], test_dataset)
-    automl.end_session()
 
