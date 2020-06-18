@@ -37,6 +37,7 @@ class BasicTA3:
             priority=10,
             rank_solutions_limit=pipelines_limit,
             allowed_value_types=['RAW'],
+            template=pipeline_template,
             problem=encode_problem_description(problem),
 
             inputs=[pb_value.Value(

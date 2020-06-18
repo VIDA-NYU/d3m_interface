@@ -20,10 +20,10 @@ setuptools.setup(
     ],
     install_requires=[
         'gitdb2==2.0.6',
-        'grpcio',
-        'grpcio-tools',
         'ta3ta2-api==2020.6.2',
-        'd3m==2020.5.18'
+        'd3m==2020.5.18',
+        'datamart-profiler==0.6.1',
+        'datamart-materialize==0.6.1'
     ],
     python_requires='>=3.6',
 )

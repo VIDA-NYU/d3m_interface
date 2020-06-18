@@ -6,6 +6,7 @@ import pandas as pd
 import datetime
 from os.path import join, split, isfile
 from d3m_interface.basic_ta3 import BasicTA3
+from d3m_interface.data_converter import is_d3m_format, convert_d3m_format
 
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
@@ -23,26 +24,34 @@ IGNORE_SUMMARY_PRIMITIVES = {'d3m.primitives.data_transformation.construct_predi
 
 class Automl:
 
-    def __init__(self, output_folder, ta2='NYU'):
+    def __init__(self, output_folder, ta2_id='NYU'):
         self.output_folder = output_folder
-        self.ta2 = ta2
+        self.ta2_id = ta2_id
         self.pipelines = []
+        self.ta2 = None
         self.ta3 = None
-        self.container = None
         self.dataset = None
         self.leaderboard = None
+        self.problem_config = None
 
-    def search_pipelines(self, dataset_path, time_bound=10):
-        self.start_ta2(dataset_path, self.output_folder)
-        self.dataset = dataset_path
-        dataset_train_path = '/input/dataset/TRAIN/dataset_TRAIN/datasetDoc.json'
-        problem_path = join(dataset_path, 'problem_TRAIN/problemDoc.json')
+    def search_pipelines(self, dataset, time_bound, target=None, metric='f1Macro', task_keywords=['classification']):
+        suffix = 'TRAIN'
+        if not is_d3m_format(dataset, suffix):
+            self.problem_config = {'target_name': target, 'metric': metric, 'task_keywords': task_keywords}
+            dataset = convert_d3m_format(dataset, self.output_folder, self.problem_config, suffix)
+
+        self.dataset = split(dataset)[0]
+        self.start_ta2()
+
+        dataset_in_container = '/input/dataset/TRAIN/dataset_TRAIN/datasetDoc.json'
+        problem_path = join(dataset, 'problem_TRAIN/problemDoc.json')
         start_time = datetime.datetime.utcnow()
-        pipelines = self.ta3.do_search(dataset_train_path, problem_path, time_bound)
+        pipelines = self.ta3.do_search(dataset_in_container, problem_path, time_bound)
 
         for pipeline in pipelines:
             end_time = datetime.datetime.utcnow()
-            # TODO: do_describe should return the whole pipeline, but there is an issue in decode_pipeline_description
+            # TODO: do_describe should return the whole pipeline, but there is an issue in decode_pipeline_description,
+            # it needs installed primitives to work
             pipeline_json_id = self.ta3.do_describe(pipeline['id'])
 
             with open(join(self.output_folder, pipeline['search_id'], 'pipelines_searched', '%s.json' % pipeline_json_id)) as fin:
@@ -69,7 +78,7 @@ class Automl:
         return self.pipelines
 
     def train(self, solution_id):
-        dataset_train_path = '/input/dataset/TRAIN/dataset_TRAIN/datasetDoc.json'
+        dataset_in_container = '/input/dataset/TRAIN/dataset_TRAIN/datasetDoc.json'
         solution_ids = {p['id'] for p in self.pipelines}
 
         if solution_id not in solution_ids:
@@ -77,21 +86,25 @@ class Automl:
             return
 
         print('Training model...')
-        fitted_solution_id = self.ta3.do_train(solution_id, dataset_train_path)
+        fitted_solution_id = self.ta3.do_train(solution_id, dataset_in_container)
         fitted_solution = None  # TODO: Call to LoadFittedSolution
         model = {fitted_solution_id: fitted_solution}
         print('Training finished!')
 
         return model
 
-    def test(self, model, test_dataset_path):
-        dataset_test_path = '/input/dataset/TEST/dataset_TEST/datasetDoc.json'
+    def test(self, model, test_dataset):
+        suffix = 'TEST'
+        if not is_d3m_format(test_dataset, suffix):
+            convert_d3m_format(test_dataset, self.output_folder, self.problem_config, suffix)
+
+        dataset_in_container = '/input/dataset/TEST/dataset_TEST/datasetDoc.json'
         fitted_solution_id = list(model.keys())[0]
         print('Testing model...')
-        tested_solution_path = self.ta3.do_test(fitted_solution_id, dataset_test_path)
+        predictions_path_in_container = self.ta3.do_test(fitted_solution_id, dataset_in_container)
         print('Testing finished!')
-        tested_solution_path = tested_solution_path.replace('file:///output/', '')
-        predictions = pd.read_csv(join(self.output_folder, tested_solution_path))
+        predictions_path_in_container = predictions_path_in_container.replace('file:///output/', '')
+        predictions = pd.read_csv(join(self.output_folder, predictions_path_in_container))
 
         return predictions
 
@@ -105,13 +118,13 @@ class Automl:
                 search_id = pipeline['search_id']
                 break
 
-        dataset_path = '/input/dataset/'
-        dataset_train_path = join(dataset_path, 'TRAIN/dataset_TRAIN/datasetDoc.json')
-        dataset_test_path = join(dataset_path, 'TEST/dataset_TEST/datasetDoc.json')
-        dataset_score_path = join(dataset_path, 'SCORE/dataset_SCORE/datasetDoc.json')
+        dataset_in_container = '/input/dataset/'
+        dataset_train_path = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
+        dataset_test_path = join(dataset_in_container, 'TEST/dataset_TEST/datasetDoc.json')
+        dataset_score_path = join(dataset_in_container, 'SCORE/dataset_SCORE/datasetDoc.json')
         if not isfile(dataset_score_path):
-            dataset_score_path = join(dataset_path, 'SCORE/dataset_TEST/datasetDoc.json')
-        problem_path = join(dataset_path, 'TRAIN/problem_TRAIN/problemDoc.json')
+            dataset_score_path = join(dataset_in_container, 'SCORE/dataset_TEST/datasetDoc.json')
+        problem_path = join(dataset_in_container, 'TRAIN/problem_TRAIN/problemDoc.json')
         pipeline_path = join('/output/', search_id, 'pipelines_searched', '%s.json' % pipeline_id)
         score_pipeline_path = join('/output/', 'fit_score_%s.csv' % pipeline_id)
         metric = None
@@ -166,7 +179,7 @@ class Automl:
                     'start': pipeline['json_representation']['created'],
                     'end': pipeline['found_time'],
                     'scores': pipeline['score'],
-                    'pipeline_source': {'name': self.ta2},
+                    'pipeline_source': {'name': self.ta2_id},
                 }
                 profiler_inputs.append(profiler_data)
 
@@ -175,14 +188,13 @@ class Automl:
 
         return profiler_inputs
 
-    def start_ta2(self, dataset_path, output_path):
+    def start_ta2(self):
         print('Initializing TA2...')
 
         process = subprocess.Popen(['docker', 'stop', 'ta2_container'])
         process.wait()
 
-        dataset_path = split(dataset_path)[0]
-        self.container = subprocess.Popen(
+        self.ta2 = subprocess.Popen(
             [
                 'docker', 'run', '--rm',
                 '--name', 'ta2_container',
@@ -191,9 +203,9 @@ class Automl:
                 '-e', 'D3MINPUTDIR=/input',
                 '-e', 'D3MOUTPUTDIR=/output',
                 '-e', 'D3MSTATICDIR=/output',  # TODO: Temporal assignment for D3MSTATICDIR env variable
-                '-v', '%s:/input/dataset/' % dataset_path,
-                '-v', '%s:/output' % output_path,
-                TA2_DOCKER_IMAGES[self.ta2]
+                '-v', '%s:/input/dataset/' % self.dataset,
+                '-v', '%s:/output' % self.output_folder,
+                TA2_DOCKER_IMAGES[self.ta2_id]
             ]
         )
         time.sleep(4)  # Wait for TA2
@@ -212,7 +224,7 @@ class Automl:
 
     def end_session(self):
         print('Ending session...')
-        if self.container is not None:
+        if self.ta2 is not None:
             process = subprocess.Popen(['docker', 'stop', 'ta2_container'])
             process.wait()
 
