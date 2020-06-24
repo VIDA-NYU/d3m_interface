@@ -4,14 +4,14 @@ import logging
 import subprocess
 import pandas as pd
 import datetime
-from os.path import join, split, isfile
+from os.path import join, split
 from d3m_interface.basic_ta3 import BasicTA3
 from d3m_interface.data_converter import is_d3m_format, convert_d3m_format
 
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s', stream=sys.stdout)
 logger = logging.getLogger(__name__)
-pd.set_option('display.max_colwidth', -1)
+pd.set_option('display.max_colwidth', None)
 
 TA2_DOCKER_IMAGES = {'NYU': 'registry.gitlab.com/vida-nyu/d3m/ta2:latest', 'TAMU': 'dmartinez05/tamuta2:latest',
                      'CMU': 'registry.datadrivendiscovery.org/sheath/cmu-ta2:latest'}
@@ -26,9 +26,13 @@ IGNORE_SUMMARY_PRIMITIVES = {'d3m.primitives.data_transformation.construct_predi
 class Automl:
 
     def __init__(self, output_folder, ta2_id='NYU'):
+        if ta2_id not in TA2_DOCKER_IMAGES:
+            logger.error('TA2 "%s" does not exist' % ta2_id)
+            return
+
         self.output_folder = output_folder
         self.ta2_id = ta2_id
-        self.pipelines = []
+        self.pipelines = {}
         self.ta2 = None
         self.ta3 = None
         self.dataset = None
@@ -58,30 +62,30 @@ class Automl:
             pipeline['found_time'] = end_time.isoformat() + 'Z'
             duration = str(end_time - start_time)
             logger.info('Found pipeline, id=%s, %s=%s, time=%s' %
-                  (pipeline['id'], pipeline['metric'], pipeline['score'], duration))
-            self.pipelines.append(pipeline)
+                        (pipeline['id'], pipeline['metric'], pipeline['score'], duration))
+            self.pipelines[pipeline['id']] = pipeline
 
         if len(self.pipelines) > 0:
             leaderboard = []
-            sorted_pipelines = sorted(self.pipelines, key=lambda x: x['normalized_score'], reverse=True)
+            sorted_pipelines = sorted(self.pipelines.values(), key=lambda x: x['normalized_score'], reverse=True)
             metric = sorted_pipelines[0]['metric']
             for position, pipeline_data in enumerate(sorted_pipelines, 1):
                 leaderboard.append([position, pipeline_data['id'], pipeline_data['summary'],  pipeline_data['score']])
 
             self.leaderboard = pd.DataFrame(leaderboard, columns=['ranking', 'id', 'summary', metric])
 
-        return self.pipelines
+        return self.pipelines.values()
 
     def train(self, solution_id):
         dataset_in_container = '/input/dataset/TRAIN/dataset_TRAIN/datasetDoc.json'
-        solution_ids = {p['id'] for p in self.pipelines}
 
-        if solution_id not in solution_ids:
+        if solution_id not in self.pipelines:
             logger.error('Pipeline id=%s does not exist' % solution_id)
+            return
 
         logger.info('Training model...')
         fitted_solution_id = self.ta3.do_train(solution_id, dataset_in_container)
-        fitted_solution = None  # TODO: Call to LoadFittedSolution
+        fitted_solution = None  # TODO: Call to LoadFittedSolution, but TA2 could not have implemented it yet
         model = {fitted_solution_id: fitted_solution}
         logger.info('Training finished!')
 
@@ -96,28 +100,30 @@ class Automl:
         fitted_solution_id = list(model.keys())[0]
         logger.info('Testing model...')
         predictions_path_in_container = self.ta3.do_test(fitted_solution_id, dataset_in_container)
+
+        if not predictions_path_in_container.startswith('file://'):
+            logger.error('Exposed output "%s" from TA2 cannot be read', predictions_path_in_container)
+            return
         logger.info('Testing finished!')
         predictions_path_in_container = predictions_path_in_container.replace('file:///output/', '')
         predictions = pd.read_csv(join(self.output_folder, predictions_path_in_container))
 
         return predictions
 
-    def test_score(self, solution_id, dataset_path_test):
+    def test_score(self, solution_id, score_dataset):
         #  TODO: Use TA2TA3 API to score
-        pipeline_id = None
-        search_id = None
-        for pipeline in self.pipelines:
-            if solution_id == pipeline['id']:
-                pipeline_id = pipeline['json_representation']['id']
-                search_id = pipeline['search_id']
-                break
+
+        if solution_id not in self.pipelines:
+            logger.error('Pipeline id=%s does not exist' % solution_id)
+            return
+
+        pipeline_id = self.pipelines[solution_id]['json_representation']['id']
+        search_id = self.pipelines[solution_id]['search_id']
 
         dataset_in_container = '/input/dataset/'
         dataset_train_path = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
         dataset_test_path = join(dataset_in_container, 'TEST/dataset_TEST/datasetDoc.json')
         dataset_score_path = join(dataset_in_container, 'SCORE/dataset_SCORE/datasetDoc.json')
-        if not isfile(dataset_score_path):
-            dataset_score_path = join(dataset_in_container, 'SCORE/dataset_TEST/datasetDoc.json')
         problem_path = join(dataset_in_container, 'TRAIN/problem_TRAIN/problemDoc.json')
         pipeline_path = join('/output/', search_id, 'pipelines_searched', '%s.json' % pipeline_id)
         score_pipeline_path = join('/output/', 'fit_score_%s.csv' % pipeline_id)
@@ -145,8 +151,8 @@ class Automl:
             df = pd.read_csv(join(self.output_folder, 'fit_score_%s.csv' % pipeline_id))
             score = round(df['value'][0], 5)
             metric = df['metric'][0].lower()
-        except Exception as e:
-            logger.exception('Error calculating test score', e)
+        except:
+            logger.exception('Error calculating test score')
 
         return metric, score
 
@@ -154,7 +160,7 @@ class Automl:
         profiler_inputs = []
         pipeline_ids = set()
 
-        for pipeline in self.pipelines:
+        for pipeline in self.pipelines.values():
             if pipeline['id'] not in pipeline_ids:
                 pipeline_ids.add(pipeline['id'])
                 if 'digest' not in pipeline['json_representation']:
@@ -178,7 +184,7 @@ class Automl:
                 profiler_inputs.append(profiler_data)
 
             else:
-                logger.exception('Ignoring repeated pipeline id=%s' % pipeline['id'])
+                logger.warning('Ignoring repeated pipeline id=%s' % pipeline['id'])
 
         return profiler_inputs
 
@@ -225,12 +231,20 @@ class Automl:
         logger.info('Session ended!')
 
     def get_summary_pipeline(self, pipeline_json):
-        primitives = []
+        primitives_summary = []
         for primitive in pipeline_json['steps']:
             primitive_name = primitive['primitive']['python_path']
             if primitive_name not in IGNORE_SUMMARY_PRIMITIVES:
-                primitive_name = '.'.join(primitive_name.split('.')[-2:]).lower()
-                primitives.append(primitive_name)
+                primitive_name_short = '.'.join(primitive_name.split('.')[-2:]).lower()
+                if primitive_name_short not in primitives_summary:
+                    primitives_summary.append(primitive_name_short)
 
-        return ', '.join(primitives)
+        return ', '.join(primitives_summary)
+
+    @staticmethod
+    def add_new_ta2(name, docker_image):
+        TA2_DOCKER_IMAGES[name] = docker_image
+        logger.info('TA2 "%s" added!', name)
+
+
 

@@ -19,3 +19,7 @@ To install the latest development version:
 ```
 $ pip3 install git+https://gitlab.com/ViDA-NYU/d3m/d3m_interface.git
 ```
+
+
+Getting `ImportError: pycurl`? 
+See this [page](https://gitlab.com/ViDA-NYU/d3m/d3m_interface/-/wikis/Pycurl-problem).
