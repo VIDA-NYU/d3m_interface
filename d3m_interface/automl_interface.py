@@ -1,4 +1,4 @@
-import json
+import sys
 import time
 import logging
 import subprocess
@@ -8,7 +8,8 @@ from os.path import join, split, isfile
 from d3m_interface.basic_ta3 import BasicTA3
 from d3m_interface.data_converter import is_d3m_format, convert_d3m_format
 
-logging.basicConfig(level=logging.ERROR, format='%(asctime)s %(levelname)s %(message)s')
+
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s', stream=sys.stdout)
 logger = logging.getLogger(__name__)
 pd.set_option('display.max_colwidth', -1)
 
@@ -50,19 +51,13 @@ class Automl:
 
         for pipeline in pipelines:
             end_time = datetime.datetime.utcnow()
-            # TODO: do_describe should return the whole pipeline, but there is an issue in decode_pipeline_description,
-            # it needs installed primitives to work
-            pipeline_json_id = self.ta3.do_describe(pipeline['id'])
-
-            with open(join(self.output_folder, pipeline['search_id'], 'pipelines_searched', '%s.json' % pipeline_json_id)) as fin:
-                pipeline_json = json.load(fin)
-                summary_pipeline = self.get_summary_pipeline(pipeline_json)
-                pipeline['json_representation'] = pipeline_json
-                pipeline['summary'] = summary_pipeline
-                pipeline['found_time'] = end_time.isoformat() + 'Z'
-
+            pipeline_json = self.ta3.do_describe(pipeline['id'], pipeline['search_id'], self.output_folder)
+            summary_pipeline = self.get_summary_pipeline(pipeline_json)
+            pipeline['json_representation'] = pipeline_json
+            pipeline['summary'] = summary_pipeline
+            pipeline['found_time'] = end_time.isoformat() + 'Z'
             duration = str(end_time - start_time)
-            print('Found pipeline, id=%s, %s=%s, time=%s' %
+            logger.info('Found pipeline, id=%s, %s=%s, time=%s' %
                   (pipeline['id'], pipeline['metric'], pipeline['score'], duration))
             self.pipelines.append(pipeline)
 
@@ -82,14 +77,13 @@ class Automl:
         solution_ids = {p['id'] for p in self.pipelines}
 
         if solution_id not in solution_ids:
-            print('Pipeline id=%s does not exist' % solution_id)
-            return
+            logger.error('Pipeline id=%s does not exist' % solution_id)
 
-        print('Training model...')
+        logger.info('Training model...')
         fitted_solution_id = self.ta3.do_train(solution_id, dataset_in_container)
         fitted_solution = None  # TODO: Call to LoadFittedSolution
         model = {fitted_solution_id: fitted_solution}
-        print('Training finished!')
+        logger.info('Training finished!')
 
         return model
 
@@ -100,9 +94,9 @@ class Automl:
 
         dataset_in_container = '/input/dataset/TEST/dataset_TEST/datasetDoc.json'
         fitted_solution_id = list(model.keys())[0]
-        print('Testing model...')
+        logger.info('Testing model...')
         predictions_path_in_container = self.ta3.do_test(fitted_solution_id, dataset_in_container)
-        print('Testing finished!')
+        logger.info('Testing finished!')
         predictions_path_in_container = predictions_path_in_container.replace('file:///output/', '')
         predictions = pd.read_csv(join(self.output_folder, predictions_path_in_container))
 
@@ -152,7 +146,7 @@ class Automl:
             score = round(df['value'][0], 5)
             metric = df['metric'][0].lower()
         except Exception as e:
-            print('Error calculating test score', e)
+            logger.exception('Error calculating test score', e)
 
         return metric, score
 
@@ -184,12 +178,12 @@ class Automl:
                 profiler_inputs.append(profiler_data)
 
             else:
-                print('Ignoring repeated pipeline id=%s' % pipeline['id'])
+                logger.exception('Ignoring repeated pipeline id=%s' % pipeline['id'])
 
         return profiler_inputs
 
     def start_ta2(self):
-        print('Initializing TA2...')
+        logger.info('Initializing TA2...')
 
         process = subprocess.Popen(['docker', 'stop', 'ta2_container'])
         process.wait()
@@ -213,7 +207,7 @@ class Automl:
             try:
                 self.ta3 = BasicTA3()
                 self.ta3.do_hello()
-                print('TA2 initialized!')
+                logger.info('TA2 initialized!')
                 break
             except:
                 if self.ta3.channel is not None:
@@ -223,12 +217,12 @@ class Automl:
                 time.sleep(4)
 
     def end_session(self):
-        print('Ending session...')
+        logger.info('Ending session...')
         if self.ta2 is not None:
             process = subprocess.Popen(['docker', 'stop', 'ta2_container'])
             process.wait()
 
-        print('Session ended!')
+        logger.info('Session ended!')
 
     def get_summary_pipeline(self, pipeline_json):
         primitives = []

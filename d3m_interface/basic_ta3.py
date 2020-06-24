@@ -1,13 +1,14 @@
 import grpc
+import json
 import logging
+from os.path import join
 import ta3ta2_api.core_pb2 as pb_core
 import ta3ta2_api.core_pb2_grpc as pb_core_grpc
 import ta3ta2_api.value_pb2 as pb_value
-from d3m.metadata.problem import parse_problem_description, PerformanceMetric
+from d3m.metadata.problem import Problem, PerformanceMetric
 from ta3ta2_api.utils import encode_problem_description, encode_performance_metric, decode_performance_metric, \
     decode_value
-
-
+from d3m.utils import fix_uri
 logger = logging.getLogger(__name__)
 
 
@@ -24,7 +25,7 @@ class BasicTA3:
 
     def do_search(self, dataset_path, problem_path, time_bound=30.0, pipelines_limit=0, pipeline_template=None):
         try:
-            problem = parse_problem_description(problem_path)
+            problem = Problem.load(problem_uri=fix_uri(problem_path))
         except:
             logger.exception('Error parsing problem')
 
@@ -163,15 +164,21 @@ class BasicTA3:
             except Exception:
                 logger.exception("Exception exporting %r", fitted_solution)
 
-    def do_describe(self, solution_id):
+    def do_describe(self, solution_id, search_id, output_folder):
         pipeline_description = None
         try:
             pipeline_description = self.core.DescribeSolution(pb_core.DescribeSolutionRequest(
                 solution_id=solution_id,
             )).pipeline
+            #  decode_pipeline_description(pipeline_description, pipeline_module.Resolver())
         except Exception:
             logger.exception("Exception during describe %r", solution_id)
-        #  TODO: Use decode_pipeline_description, the current problem is it needs installed primitives to work
-        #  decode_pipeline_description(pipeline_description, pipeline_module.Resolver())
+        #  TODO: Use only decode_pipeline_description method to get the json representation of the pipeline,
+        #   the current problem is it needs installed primitives to work. Temporal solution is get it from file
 
-        return pipeline_description.id
+        pipeline_json_id = pipeline_description.id
+
+        with open(join(output_folder, search_id, 'pipelines_searched', '%s.json' % pipeline_json_id)) as fin:
+            pipeline_json = json.load(fin)
+
+        return pipeline_json

@@ -22,8 +22,9 @@ setuptools.setup(
         'gitdb2==2.0.6',
         'ta3ta2-api==2020.6.2',
         'd3m==2020.5.18',
-        'datamart-profiler==0.6.1',
-        'datamart-materialize==0.6.1'
+        'pipelineprofiler==0.1.12'
+        'datamart-profiler==0.6.2',
+        'datamart-materialize==0.6.2'
     ],
     python_requires='>=3.6',
 )
