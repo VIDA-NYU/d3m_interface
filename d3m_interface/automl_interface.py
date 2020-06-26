@@ -124,18 +124,15 @@ class Automl:
 
         pipeline_id = self.pipelines[solution_id]['json_representation']['id']
 
-        #with open(join(self.output_folder, '%s.json' % pipeline_id), 'w') as fout:
-        #    json.dump(self.pipelines[solution_id]['json_representation'], fout)
-
-        search_id = self.pipelines[solution_id]['search_id']
+        with open(join(self.output_folder, '%s.json' % pipeline_id), 'w') as fout:
+            json.dump(self.pipelines[solution_id]['json_representation'], fout)
 
         dataset_in_container = '/input/dataset/'
         dataset_train_path = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
         dataset_test_path = join(dataset_in_container, 'TEST/dataset_TEST/datasetDoc.json')
         dataset_score_path = join(dataset_in_container, 'SCORE/dataset_SCORE/datasetDoc.json')
         problem_path = join(dataset_in_container, 'TRAIN/problem_TRAIN/problemDoc.json')
-        pipeline_path = join('/output/', search_id, 'pipelines_scored', '%s.json' % pipeline_id)
-        #pipeline_path = join('/output/', '%s.json' % pipeline_id)
+        pipeline_path = join('/output/', '%s.json' % pipeline_id)
         score_pipeline_path = join('/output/', 'fit_score_%s.csv' % pipeline_id)
         metric = None
         score = None
@@ -163,6 +160,7 @@ class Automl:
             metric = df['metric'][0].lower()
         except:
             logger.exception('Error calculating test score')
+            return
 
         return metric, score
 

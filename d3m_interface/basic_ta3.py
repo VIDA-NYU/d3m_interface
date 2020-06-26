@@ -138,7 +138,7 @@ class BasicTA3:
                 inputs=[pb_value.Value(
                     dataset_uri='file://%s' % dataset_path,
                 )],
-                expose_outputs=[],
+                expose_outputs=['outputs.0'],
                 expose_value_types=['CSV_URI'],
                 users=[],
             ))
