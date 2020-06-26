@@ -1,14 +1,16 @@
 import grpc
-import json
 import logging
-from os.path import join
 import ta3ta2_api.core_pb2 as pb_core
 import ta3ta2_api.core_pb2_grpc as pb_core_grpc
 import ta3ta2_api.value_pb2 as pb_value
 from d3m.metadata.problem import Problem, PerformanceMetric
 from ta3ta2_api.utils import encode_problem_description, encode_performance_metric, decode_performance_metric, \
-    decode_value
+    decode_value, decode_pipeline_description
 from d3m.utils import fix_uri
+from d3m.metadata import pipeline as pipeline_module
+
+
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
 
@@ -37,7 +39,7 @@ class BasicTA3:
             time_bound_search=time_bound,
             priority=10,
             rank_solutions_limit=pipelines_limit,
-            allowed_value_types=['RAW'],
+            allowed_value_types=['RAW', 'DATASET_URI', 'CSV_URI'],
             template=pipeline_template,
             problem=encode_problem_description(problem),
 
@@ -164,21 +166,14 @@ class BasicTA3:
             except Exception:
                 logger.exception("Exception exporting %r", fitted_solution)
 
-    def do_describe(self, solution_id, search_id, output_folder):
-        pipeline_description = None
+    def do_describe(self, solution_id):
+        pipeline = None
         try:
             pipeline_description = self.core.DescribeSolution(pb_core.DescribeSolutionRequest(
                 solution_id=solution_id,
             )).pipeline
-            #  decode_pipeline_description(pipeline_description, pipeline_module.Resolver())
+            pipeline = decode_pipeline_description(pipeline_description, pipeline_module.NoResolver())
         except Exception:
             logger.exception("Exception during describe %r", solution_id)
-        #  TODO: Use only decode_pipeline_description method to get the json representation of the pipeline,
-        #   the current problem is it needs installed primitives to work. Temporal solution is get it from file
 
-        pipeline_json_id = pipeline_description.id
-
-        with open(join(output_folder, search_id, 'pipelines_searched', '%s.json' % pipeline_json_id)) as fin:
-            pipeline_json = json.load(fin)
-
-        return pipeline_json
+        return pipeline.to_json_structure()

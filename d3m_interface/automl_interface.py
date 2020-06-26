@@ -55,7 +55,7 @@ class Automl:
 
         for pipeline in pipelines:
             end_time = datetime.datetime.utcnow()
-            pipeline_json = self.ta3.do_describe(pipeline['id'], pipeline['search_id'], self.output_folder)
+            pipeline_json = self.ta3.do_describe(pipeline['id'])
             summary_pipeline = self.get_summary_pipeline(pipeline_json)
             pipeline['json_representation'] = pipeline_json
             pipeline['summary'] = summary_pipeline
