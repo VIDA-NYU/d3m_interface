@@ -6,11 +6,10 @@ import ta3ta2_api.value_pb2 as pb_value
 from d3m.metadata.problem import Problem, PerformanceMetric
 from ta3ta2_api.utils import encode_problem_description, encode_performance_metric, decode_performance_metric, \
     decode_value, decode_pipeline_description
-from d3m.utils import fix_uri
+from d3m.utils import fix_uri, silence
 from d3m.metadata import pipeline as pipeline_module
 
 
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
 
@@ -102,7 +101,7 @@ class BasicTA3:
                 )
                 for _ in results:
                     pass
-            except Exception:
+            except:
                 logger.exception("Exception during scoring %r", solution)
 
     def do_train(self, solution_id, dataset_path):
@@ -126,7 +125,7 @@ class BasicTA3:
             for result in results:
                 if result.progress.state == pb_core.COMPLETED:
                     fitted_solution = result.fitted_solution_id
-        except Exception:
+        except:
             logger.exception("Exception training %r", solution_id)
 
         return fitted_solution
@@ -151,7 +150,7 @@ class BasicTA3:
             for result in results:
                 if result.progress.state == pb_core.COMPLETED:
                     tested = result.exposed_outputs['outputs.0'].csv_uri
-        except Exception:
+        except:
             logger.exception("Exception testing %r", fitted_solution_id)
 
         return tested
@@ -163,17 +162,19 @@ class BasicTA3:
                     solution_id=fitted_solution,
                     rank=(i + 1.0) / (len(fitted) + 1.0),
                 ))
-            except Exception:
+            except:
                 logger.exception("Exception exporting %r", fitted_solution)
 
     def do_describe(self, solution_id):
-        pipeline = None
+        pipeline_description = None
         try:
             pipeline_description = self.core.DescribeSolution(pb_core.DescribeSolutionRequest(
                 solution_id=solution_id,
             )).pipeline
-            pipeline = decode_pipeline_description(pipeline_description, pipeline_module.NoResolver())
-        except Exception:
+        except:
             logger.exception("Exception during describe %r", solution_id)
+
+        with silence():
+            pipeline = decode_pipeline_description(pipeline_description, pipeline_module.NoResolver())
 
         return pipeline.to_json_structure()

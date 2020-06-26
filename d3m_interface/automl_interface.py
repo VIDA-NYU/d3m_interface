@@ -1,5 +1,6 @@
 import sys
 import time
+import json
 import logging
 import subprocess
 import pandas as pd
@@ -27,7 +28,7 @@ class Automl:
 
     def __init__(self, output_folder, ta2_id='NYU'):
         if ta2_id not in TA2_DOCKER_IMAGES:
-            logger.error('TA2 "%s" does not exist' % ta2_id)
+            logger.error('%s TA2 does not exist' % ta2_id)
             return
 
         self.output_folder = output_folder
@@ -39,7 +40,7 @@ class Automl:
         self.leaderboard = None
         self.problem_config = None
 
-    def search_pipelines(self, dataset, time_bound, target=None, metric='f1Macro', task_keywords=['classification']):
+    def search_pipelines(self, dataset, time_bound, target=None, metric='accuracy', task_keywords=['classification']):
         suffix = 'TRAIN'
         if not is_d3m_format(dataset, suffix):
             self.problem_config = {'target_name': target, 'metric': metric, 'task_keywords': task_keywords}
@@ -55,7 +56,11 @@ class Automl:
 
         for pipeline in pipelines:
             end_time = datetime.datetime.utcnow()
-            pipeline_json = self.ta3.do_describe(pipeline['id'])
+            try:
+                pipeline_json = self.ta3.do_describe(pipeline['id'])
+            except:
+                logger.error('Decoding pipeline id=%s', pipeline['id'])
+                continue
             summary_pipeline = self.get_summary_pipeline(pipeline_json)
             pipeline['json_representation'] = pipeline_json
             pipeline['summary'] = summary_pipeline
@@ -118,6 +123,10 @@ class Automl:
             return
 
         pipeline_id = self.pipelines[solution_id]['json_representation']['id']
+
+        #with open(join(self.output_folder, '%s.json' % pipeline_id), 'w') as fout:
+        #    json.dump(self.pipelines[solution_id]['json_representation'], fout)
+
         search_id = self.pipelines[solution_id]['search_id']
 
         dataset_in_container = '/input/dataset/'
@@ -125,7 +134,8 @@ class Automl:
         dataset_test_path = join(dataset_in_container, 'TEST/dataset_TEST/datasetDoc.json')
         dataset_score_path = join(dataset_in_container, 'SCORE/dataset_SCORE/datasetDoc.json')
         problem_path = join(dataset_in_container, 'TRAIN/problem_TRAIN/problemDoc.json')
-        pipeline_path = join('/output/', search_id, 'pipelines_searched', '%s.json' % pipeline_id)
+        pipeline_path = join('/output/', search_id, 'pipelines_scored', '%s.json' % pipeline_id)
+        #pipeline_path = join('/output/', '%s.json' % pipeline_id)
         score_pipeline_path = join('/output/', 'fit_score_%s.csv' % pipeline_id)
         metric = None
         score = None
@@ -185,11 +195,12 @@ class Automl:
 
             else:
                 logger.warning('Ignoring repeated pipeline id=%s' % pipeline['id'])
+        logger.info('Inputs for PipelineProfiler created!')
 
         return profiler_inputs
 
     def start_ta2(self):
-        logger.info('Initializing TA2...')
+        logger.info('Initializing %s TA2...', self.ta2_id)
 
         process = subprocess.Popen(['docker', 'stop', 'ta2_container'])
         process.wait()
@@ -213,7 +224,7 @@ class Automl:
             try:
                 self.ta3 = BasicTA3()
                 self.ta3.do_hello()
-                logger.info('TA2 initialized!')
+                logger.info('%s TA2 initialized!', self.ta2_id)
                 break
             except:
                 if self.ta3.channel is not None:
@@ -244,7 +255,7 @@ class Automl:
     @staticmethod
     def add_new_ta2(name, docker_image):
         TA2_DOCKER_IMAGES[name] = docker_image
-        logger.info('TA2 "%s" added!', name)
+        logger.info('%s TA2 added!', name)
 
 
 

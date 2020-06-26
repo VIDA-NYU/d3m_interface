@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="d3m_interface",
-    version="0.1.4",
+    version="0.1.5",
     author="Roque Lopez",
     author_email="rlopez@nyu.edu",
     description="Library to use D3M AutoML Systems",
@@ -22,9 +22,7 @@ setuptools.setup(
         'ta3ta2-api==2020.6.2',
         'd3m==2020.5.18',
         'pipelineprofiler==0.1.12',
-        'pandas==1.0.3',
-        'datamart-profiler==0.6.2',
-        'datamart-materialize==0.6.2'
+        'pandas==1.0.3'
     ],
     python_requires='>=3.6',
 )
