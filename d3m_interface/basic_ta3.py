@@ -58,18 +58,30 @@ class BasicTA3:
             if result.solution_id:
                 pipeline_id = result.solution_id
                 scores = []
+                rank_scores = []
                 for fold_score in result.scores:
                     for metric_score in fold_score.scores:
                         metric = decode_performance_metric(metric_score.metric)['metric']
                         if metric == target_metric:
                             score = decode_value(metric_score.value)['value']
                             scores.append(score)
+                        elif metric == 'RANK':
+                            rank_score = decode_value(metric_score.value)['value']
+                            rank_scores.append(rank_score)
+
                 if len(scores) > 0:
                     avg_score = round(sum(scores) / len(scores), 5)
                     normalized_score = PerformanceMetric[target_metric.name].normalize(avg_score)
 
                     yield {'id': pipeline_id, 'score': avg_score, 'normalized_score': normalized_score,
                            'metric': target_metric.name.lower(), 'search_id': str(search.search_id)}
+
+                if len(scores) == 0 and len(rank_scores) > 0:
+                    logger.warning('TA2 returning only RANK metric')
+                    avg_score = round(sum(rank_scores) / len(rank_scores), 5)
+
+                    yield {'id': pipeline_id, 'score': avg_score, 'normalized_score': avg_score,
+                           'metric': 'rank', 'search_id': str(search.search_id)}
 
     def do_score(self, problem, solutions, dataset_path):
         metrics = []
