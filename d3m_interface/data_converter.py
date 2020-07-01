@@ -6,6 +6,7 @@ from os.path import join, exists
 from d3m.container import Dataset
 from d3m.utils import fix_uri
 from d3m.container.utils import save_container
+from d3m.metadata.problem import PerformanceMetricBase, TASK_TYPE_TO_KEYWORDS_MAP
 
 logger = logging.getLogger(__name__)
 DATASET_ID = 'internal_dataset'
@@ -20,12 +21,40 @@ def is_d3m_format(dataset, suffix):
 
 def convert_d3m_format(dataset_uri, output_folder, problem_config, suffix):
     logger.info('Reiceving a raw dataset, converting to D3M format')
+    problem_config = check_problem_config(problem_config)
     dataset_folder = join(output_folder, 'temp', 'dataset_d3mformat', suffix, 'dataset_%s' % suffix)
     problem_folder = join(output_folder, 'temp', 'dataset_d3mformat', suffix, 'problem_%s' % suffix)
     dataset = create_d3m_dataset(dataset_uri, dataset_folder)
     create_d3m_problem(dataset['learningData'], problem_folder, problem_config)
 
     return join(output_folder, 'temp', 'dataset_d3mformat', suffix)
+
+
+def check_problem_config(problem_config):
+    if problem_config['target_column'] is None:
+        raise ValueError('Parameter "target_column" not provided, but it is mandatory')
+
+    valid_task_keywords = {keyword for keyword in TASK_TYPE_TO_KEYWORDS_MAP.keys() if keyword is not None}
+    if problem_config['task_keywords'] is None:
+        problem_config['task_keywords'] = ['classification', 'multiClass']
+        logger.warning('Task keywords not defined, using: [%s]' % ', '.join(problem_config['task_keywords']))
+
+    for task_keyword in problem_config['task_keywords']:
+        if task_keyword not in valid_task_keywords:
+            raise ValueError('Unknown "%s" task keyword, you should choose among [%s]' %
+                             (', '.join(problem_config['task_keywords']), ', '.join(valid_task_keywords)))
+
+    valid_metrics = {metric for metric in PerformanceMetricBase.get_map()}
+    if problem_config['metric'] is None:
+        problem_config['metric'] = 'accuracy'
+        if 'regression' in problem_config['task_keywords']:
+            problem_config['metric'] = 'rootMeanSquaredError'
+        logger.warning('Metric not defined, using: %s' % problem_config['metric'])
+    elif problem_config['metric'] not in valid_metrics:
+        raise ValueError('Unknown "%s" metric, you should choose among [%s]' %
+                         (problem_config['metric'], ', '.join(valid_metrics)))
+
+    return problem_config
 
 
 def create_d3m_dataset(dataset_uri, destination_path):
@@ -39,7 +68,7 @@ def create_d3m_dataset(dataset_uri, destination_path):
 
 
 def create_d3m_problem(dataset, destination_path, problem_config):
-    target_index = dataset.columns.get_loc(problem_config['target_name'])
+    target_index = dataset.columns.get_loc(problem_config['target_column'])
     problem_config['target_index'] = target_index
 
     if exists(destination_path):
@@ -53,7 +82,7 @@ def create_d3m_problem(dataset, destination_path, problem_config):
             "problemDescription": "",
             "problemVersion": "4.0.0",
             "problemSchemaVersion": "4.0.0",
-            "taskKeywords": problem_config.get('task_keywords')
+            "taskKeywords": problem_config['task_keywords']
           },
           "inputs": {
             "data": [
@@ -63,15 +92,15 @@ def create_d3m_problem(dataset, destination_path, problem_config):
                   {
                     "targetIndex": 0,
                     "resID": "learningData",
-                    "colIndex": problem_config.get('target_index'),
-                    "colName": problem_config.get('target_name')
+                    "colIndex": problem_config['target_index'],
+                    "colName": problem_config['target_column']
                   }
                 ]
               }
             ],
             "performanceMetrics": [
               {
-                "metric": problem_config.get('metric', "accuracy")
+                "metric": problem_config['metric']
               }
             ]
           },

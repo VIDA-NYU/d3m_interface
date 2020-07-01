@@ -73,7 +73,7 @@ class BasicTA3:
                     avg_score = round(sum(scores) / len(scores), 5)
                     normalized_score = PerformanceMetric[target_metric.name].normalize(avg_score)
 
-                    yield {'id': pipeline_id, 'score': avg_score, 'normalized_score': normalized_score,
+                    yield {'id': pipeline_id, 'score': avg_score, 'normalized_score': 1.0 - normalized_score,
                            'metric': target_metric.name.lower(), 'search_id': str(search.search_id)}
 
                 if len(scores) == 0 and len(rank_scores) > 0:

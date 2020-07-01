@@ -28,8 +28,7 @@ class Automl:
 
     def __init__(self, output_folder, ta2_id='NYU'):
         if ta2_id not in TA2_DOCKER_IMAGES:
-            logger.error('%s TA2 does not exist' % ta2_id)
-            return
+            raise ValueError('Unknown "%s" TA2, you should choose among: [%s]' % (ta2_id, ', '.join(TA2_DOCKER_IMAGES)))
 
         self.output_folder = output_folder
         self.ta2_id = ta2_id
@@ -40,10 +39,10 @@ class Automl:
         self.leaderboard = None
         self.problem_config = None
 
-    def search_pipelines(self, dataset, time_bound, target=None, metric='accuracy', task_keywords=['classification']):
+    def search_pipelines(self, dataset, time_bound, target=None, metric=None, task_keywords=None):
         suffix = 'TRAIN'
         if not is_d3m_format(dataset, suffix):
-            self.problem_config = {'target_name': target, 'metric': metric, 'task_keywords': task_keywords}
+            self.problem_config = {'target_column': target, 'metric': metric, 'task_keywords': task_keywords}
             dataset = convert_d3m_format(dataset, self.output_folder, self.problem_config, suffix)
 
         self.dataset = split(dataset)[0]
@@ -72,7 +71,7 @@ class Automl:
 
         if len(self.pipelines) > 0:
             leaderboard = []
-            sorted_pipelines = sorted(self.pipelines.values(), key=lambda x: x['normalized_score'], reverse=True)
+            sorted_pipelines = sorted(self.pipelines.values(), key=lambda x: x['normalized_score'])
             metric = sorted_pipelines[0]['metric']
             for position, pipeline_data in enumerate(sorted_pipelines, 1):
                 leaderboard.append([position, pipeline_data['id'], pipeline_data['summary'],  pipeline_data['score']])
@@ -107,8 +106,8 @@ class Automl:
         predictions_path_in_container = self.ta3.do_test(fitted_solution_id, dataset_in_container)
 
         if not predictions_path_in_container.startswith('file://'):
-            logger.error('Exposed output "%s" from TA2 cannot be read', predictions_path_in_container)
-            return
+            raise ValueError('Exposed output "%s" from TA2 cannot be read', predictions_path_in_container)
+
         logger.info('Testing finished!')
         predictions_path_in_container = predictions_path_in_container.replace('file:///output/', '')
         predictions = pd.read_csv(join(self.output_folder, predictions_path_in_container))
