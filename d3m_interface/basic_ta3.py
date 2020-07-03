@@ -53,68 +53,58 @@ class BasicTA3:
             )
         )
 
-        target_metric = problem['problem']['performance_metrics'][0]['metric']
         for result in results:
             if result.solution_id:
                 pipeline_id = result.solution_id
+                yield {'id': pipeline_id, 'search_id': str(search.search_id)}
+
+    def do_score(self, solution_id, dataset_path, problem_path):
+        try:
+            problem = Problem.load(problem_uri=fix_uri(problem_path))
+        except:
+            logger.exception('Error parsing problem')
+
+        metrics = []
+
+        for metric in problem['problem']['performance_metrics']:
+            metrics.append(encode_performance_metric(metric))
+        # Showing only the first metric
+        target_metric = problem['problem']['performance_metrics'][0]['metric']
+
+        response = self.core.ScoreSolution(pb_core.ScoreSolutionRequest(
+            solution_id=solution_id,
+            inputs=[pb_value.Value(
+                dataset_uri='file://%s' % dataset_path,
+            )],
+            performance_metrics=metrics,
+            users=[],
+            configuration=pb_core.ScoringConfiguration(
+                method='HOLDOUT',
+                train_test_ratio=0.75,
+                shuffle=True,
+                random_seed=0
+            ),
+        ))
+        results = self.core.GetScoreSolutionResults(
+            pb_core.GetScoreSolutionResultsRequest(
+                request_id=response.request_id,
+            )
+        )
+        for result in results:
+            if result.progress.state == pb_core.COMPLETED:
                 scores = []
-                rank_scores = []
-                for fold_score in result.scores:
-                    for metric_score in fold_score.scores:
-                        metric = decode_performance_metric(metric_score.metric)['metric']
-                        if metric == target_metric:
-                            score = decode_value(metric_score.value)['value']
-                            scores.append(score)
-                        elif metric == 'RANK':
-                            rank_score = decode_value(metric_score.value)['value']
-                            rank_scores.append(rank_score)
+                for metric_score in result.scores:
+                    metric = decode_performance_metric(metric_score.metric)['metric']
+                    if metric == target_metric:
+                        score = decode_value(metric_score.value)['value']
+                        scores.append(score)
 
                 if len(scores) > 0:
                     avg_score = round(sum(scores) / len(scores), 5)
                     normalized_score = PerformanceMetric[target_metric.name].normalize(avg_score)
 
-                    yield {'id': pipeline_id, 'score': avg_score, 'normalized_score': 1.0 - normalized_score,
-                           'metric': target_metric.name.lower(), 'search_id': str(search.search_id)}
-
-                if len(scores) == 0 and len(rank_scores) > 0:
-                    logger.warning('TA2 returning only RANK metric')
-                    avg_score = round(sum(rank_scores) / len(rank_scores), 5)
-
-                    yield {'id': pipeline_id, 'score': avg_score, 'normalized_score': avg_score,
-                           'metric': 'rank', 'search_id': str(search.search_id)}
-
-    def do_score(self, problem, solutions, dataset_path):
-        metrics = []
-
-        for metric in problem['problem']['performance_metrics']:
-            metrics.append(encode_performance_metric(metric))
-
-        for solution in solutions:
-            try:
-                response = self.core.ScoreSolution(pb_core.ScoreSolutionRequest(
-                    solution_id=solution,
-                    inputs=[pb_value.Value(
-                        dataset_uri='file://%s' % dataset_path,
-                    )],
-                    performance_metrics=metrics,
-                    users=[],
-                    configuration=pb_core.ScoringConfiguration(
-                        method='K_FOLD',
-                        folds=4,
-                        train_test_ratio=0.75,
-                        shuffle=True,
-                        random_seed=0
-                    ),
-                ))
-                results = self.core.GetScoreSolutionResults(
-                    pb_core.GetScoreSolutionResultsRequest(
-                        request_id=response.request_id,
-                    )
-                )
-                for _ in results:
-                    pass
-            except:
-                logger.exception("Exception during scoring %r", solution)
+                    return {'score': avg_score, 'normalized_score': 1.0 - normalized_score,
+                            'metric': target_metric.name.lower()}
 
     def do_train(self, solution_id, dataset_path):
         fitted_solution = None
@@ -190,3 +180,6 @@ class BasicTA3:
             pipeline = decode_pipeline_description(pipeline_description, pipeline_module.NoResolver())
 
         return pipeline.to_json_structure()
+
+    def do_stop_search(self, search_id):
+        self.core.StopSearchSolutions(pb_core.StopSearchSolutionsRequest(search_id=search_id))

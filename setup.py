@@ -21,7 +21,7 @@ setuptools.setup(
     install_requires=[
         'ta3ta2-api==2020.6.2',
         'd3m==2020.5.18',
-        'pipelineprofiler==0.1.12',
+        'pipelineprofiler==0.1.13',
         'pandas==1.0.3'
     ],
     python_requires='>=3.6',

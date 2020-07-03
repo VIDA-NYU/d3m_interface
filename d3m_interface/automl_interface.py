@@ -2,6 +2,7 @@ import sys
 import time
 import json
 import logging
+import signal
 import subprocess
 import pandas as pd
 import datetime
@@ -47,6 +48,9 @@ class Automl:
 
         self.dataset = split(dataset)[0]
         self.start_ta2()
+        search_id = None
+        signal.signal(signal.SIGALRM, lambda signum, frame: self.ta3.do_stop_search(search_id))
+        signal.alarm(time_bound * 60)
 
         dataset_in_container = '/input/dataset/TRAIN/dataset_TRAIN/datasetDoc.json'
         problem_path = join(dataset, 'problem_TRAIN/problemDoc.json')
@@ -65,9 +69,18 @@ class Automl:
             pipeline['summary'] = summary_pipeline
             pipeline['found_time'] = end_time.isoformat() + 'Z'
             duration = str(end_time - start_time)
+            try:
+                score_data = self.ta3.do_score(pipeline['id'], dataset_in_container, problem_path)
+            except:
+                logger.error('Scoring pipeline id=%s', pipeline['id'])
+                continue
+            pipeline['score'] = score_data['score']
+            pipeline['normalized_score'] = score_data['normalized_score']
+            pipeline['metric'] = score_data['metric']
             logger.info('Found pipeline, id=%s, %s=%s, time=%s' %
                         (pipeline['id'], pipeline['metric'], pipeline['score'], duration))
             self.pipelines[pipeline['id']] = pipeline
+            search_id = pipeline['search_id']
 
         if len(self.pipelines) > 0:
             leaderboard = []
@@ -78,6 +91,7 @@ class Automl:
 
             self.leaderboard = pd.DataFrame(leaderboard, columns=['ranking', 'id', 'summary', metric])
 
+        signal.alarm(0)
         return self.pipelines.values()
 
     def train(self, solution_id):
