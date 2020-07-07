@@ -9,14 +9,17 @@ import datetime
 from os.path import join, split
 from d3m_interface.basic_ta3 import BasicTA3
 from d3m_interface.data_converter import is_d3m_format, convert_d3m_format
+from d3m.metadata.problem import PerformanceMetric
 
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s', stream=sys.stdout)
 logger = logging.getLogger(__name__)
 pd.set_option('display.max_colwidth', None)
 
-TA2_DOCKER_IMAGES = {'NYU': 'registry.gitlab.com/vida-nyu/d3m/ta2:latest', 'TAMU': 'dmartinez05/tamuta2:latest',
-                     'CMU': 'registry.datadrivendiscovery.org/sheath/cmu-ta2:latest'}
+TA2_DOCKER_IMAGES = {'NYU': 'registry.gitlab.com/vida-nyu/d3m/ta2:latest',
+                     'CMU': 'registry.datadrivendiscovery.org/sheath/cmu-ta2:latest',
+                     'SRI': 'registry.gitlab.com/daraghhartnett/autoflow:latest',
+                     'TAMU': 'dmartinez05/tamuta2:latest'}
 
 IGNORE_SUMMARY_PRIMITIVES = {'d3m.primitives.data_transformation.construct_predictions.Common',
                              'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
@@ -84,7 +87,7 @@ class Automl:
 
         if len(self.pipelines) > 0:
             leaderboard = []
-            sorted_pipelines = sorted(self.pipelines.values(), key=lambda x: x['normalized_score'])
+            sorted_pipelines = sorted(self.pipelines.values(), key=lambda x: x['normalized_score'], reverse=True)
             metric = sorted_pipelines[0]['metric']
             for position, pipeline_data in enumerate(sorted_pipelines, 1):
                 leaderboard.append([position, pipeline_data['id'], pipeline_data['summary'],  pipeline_data['score']])
@@ -128,7 +131,7 @@ class Automl:
 
         return predictions
 
-    def test_score(self, solution_id, score_dataset):
+    def score(self, solution_id, test_dataset):
         #  TODO: Use TA2TA3 API to score
 
         if solution_id not in self.pipelines:
@@ -177,9 +180,12 @@ class Automl:
 
         return metric, score
 
-    def create_profiler_inputs(self):
+    def create_profiler_inputs(self, test_dataset=None):
         profiler_inputs = []
         pipeline_ids = set()
+
+        if test_dataset is not None:
+            logger.info('Calculating scores in the test dataset...')
 
         for pipeline in self.pipelines.values():
             if pipeline['id'] not in pipeline_ids:
@@ -187,8 +193,20 @@ class Automl:
                 if 'digest' not in pipeline['json_representation']:
                     pipeline['json_representation']['digest'] = pipeline['id']  # TODO: Compute digest
 
-                pipeline['score'] = [{'metric': {'metric': pipeline['metric']}, 'value': pipeline['score'],
-                                      'normalized': pipeline['normalized_score']}]
+                pipeline_score = [{'metric': {'metric': pipeline['metric']}, 'value': pipeline['score'],
+                                   'normalized': pipeline['normalized_score']}]
+                problem = self.dataset
+                start_time = pipeline['json_representation']['created']
+                end_time = pipeline['found_time']
+
+                if test_dataset is not None:
+                    problem = test_dataset
+                    start_time = datetime.datetime.utcnow().isoformat() + 'Z'
+                    metric, score,  = self.score(pipeline['id'], test_dataset)
+                    end_time = datetime.datetime.utcnow().isoformat() + 'Z'
+                    normalized_score = PerformanceMetric[metric.upper()].normalize(score)
+                    pipeline_score = [{'metric': {'metric': metric}, 'value': score,
+                                       'normalized': normalized_score}]
 
                 profiler_data = {
                     'pipeline_id': pipeline['json_representation']['id'],
@@ -196,10 +214,10 @@ class Automl:
                     'steps': pipeline['json_representation']['steps'],
                     'outputs': pipeline['json_representation']['outputs'],
                     'pipeline_digest': pipeline['json_representation']['digest'],
-                    'problem': self.dataset,
-                    'start': pipeline['json_representation']['created'],
-                    'end': pipeline['found_time'],
-                    'scores': pipeline['score'],
+                    'problem': problem,
+                    'start': start_time,
+                    'end': end_time,
+                    'scores': pipeline_score,
                     'pipeline_source': {'name': self.ta2_id},
                 }
                 profiler_inputs.append(profiler_data)

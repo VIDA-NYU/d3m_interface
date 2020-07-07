@@ -103,7 +103,7 @@ class BasicTA3:
                     avg_score = round(sum(scores) / len(scores), 5)
                     normalized_score = PerformanceMetric[target_metric.name].normalize(avg_score)
 
-                    return {'score': avg_score, 'normalized_score': 1.0 - normalized_score,
+                    return {'score': avg_score, 'normalized_score': normalized_score,
                             'metric': target_metric.name.lower()}
 
     def do_train(self, solution_id, dataset_path):
