@@ -19,8 +19,8 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     install_requires=[
-        'ta3ta2-api==2020.6.2',
-        'd3m==2020.5.18',
+        'ta3ta2-api @ git+https://gitlab.com/datadrivendiscovery/ta3ta2-api.git@1c06dc505ad517becde0866e1aa9925513ad599c',
+        'd3m @ git+https://gitlab.com/datadrivendiscovery/d3m.git@devel#egg=d3m',
         'pipelineprofiler==0.1.13',
         'pandas==1.0.3'
     ],
