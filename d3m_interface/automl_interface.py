@@ -175,7 +175,7 @@ class Automl:
             score = round(df['value'][0], 5)
             metric = df['metric'][0].lower()
         except:
-            logger.exception('Error calculating test score')
+            logger.exception('Scoring pipeline in test dataset')
             return
 
         return metric, score
