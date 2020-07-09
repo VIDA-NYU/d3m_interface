@@ -3,6 +3,7 @@ D3M Interface Library
 Library to use D3M AutoML Systems. This repository contains an implementation to integrate 
  D3M TA2s with Jupyter Notebooks using the TA3-TA2 API. 
 
+[Documentation is available here](https://d3m-interface.readthedocs.io/en/latest/)
 
 ## Installation
 This package works with Python 3.6. You need to have [Docker](https://docs.docker.com/get-docker/) installed on your operating system.
