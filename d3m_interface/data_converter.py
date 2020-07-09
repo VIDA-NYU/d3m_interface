@@ -58,6 +58,8 @@ def check_problem_config(problem_config):
 
 
 def create_d3m_dataset(dataset_uri, destination_path):
+    if callable(dataset_uri):
+        dataset_uri = 'sklearn://' + dataset_uri.__name__.replace('load_', '')
     if exists(destination_path):
         shutil.rmtree(destination_path)
 
