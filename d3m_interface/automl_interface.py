@@ -6,11 +6,13 @@ import signal
 import subprocess
 import pandas as pd
 import datetime
+import datamart_profiler
 from os.path import join, split
 from d3m_interface.basic_ta3 import BasicTA3
+from d3m_interface.visualization import histogram_summaries
 from d3m_interface.data_converter import is_d3m_format, convert_d3m_format
 from d3m.metadata.problem import PerformanceMetric
-
+from d3m.utils import silence
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s', stream=sys.stdout)
 logger = logging.getLogger(__name__)
@@ -281,10 +283,22 @@ class Automl:
 
         return ', '.join(primitives_summary)
 
+
     @staticmethod
     def add_new_ta2(name, docker_image):
         TA2_DOCKER_IMAGES[name] = docker_image
         logger.info('%s TA2 added!', name)
 
+    @staticmethod
+    def plot_summary_dataset(dataset_path):
+        suffix = dataset_path.split('/')[-1]
+        with silence():
+            if is_d3m_format(dataset_path, suffix):
+                metadata = datamart_profiler.process_dataset(
+                    join(dataset_path, 'dataset_%s/tables/learningData.csv' % suffix),
+                    plots=True)
 
+            elif dataset_path.endswith('.csv'):
+                metadata = datamart_profiler.process_dataset(dataset_path, plots=True)
 
+        histogram_summaries(metadata)
