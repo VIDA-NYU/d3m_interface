@@ -6,7 +6,7 @@ from os.path import join, exists
 from d3m.container import Dataset
 from d3m.utils import fix_uri
 from d3m.container.utils import save_container
-from d3m.metadata.problem import PerformanceMetricBase, TASK_TYPE_TO_KEYWORDS_MAP
+from d3m.metadata.problem import PerformanceMetricBase, TaskKeywordBase
 
 logger = logging.getLogger(__name__)
 DATASET_ID = 'internal_dataset'
@@ -34,7 +34,7 @@ def check_problem_config(problem_config):
     if problem_config['target_column'] is None:
         raise ValueError('Parameter "target_column" not provided, but it is mandatory')
 
-    valid_task_keywords = {keyword for keyword in TASK_TYPE_TO_KEYWORDS_MAP.keys() if keyword is not None}
+    valid_task_keywords = {keyword for keyword in TaskKeywordBase.get_map().keys() if keyword is not None}
     if problem_config['task_keywords'] is None:
         problem_config['task_keywords'] = ['classification', 'multiClass']
         logger.warning('Task keywords not defined, using: [%s]' % ', '.join(problem_config['task_keywords']))
@@ -42,7 +42,7 @@ def check_problem_config(problem_config):
     for task_keyword in problem_config['task_keywords']:
         if task_keyword not in valid_task_keywords:
             raise ValueError('Unknown "%s" task keyword, you should choose among [%s]' %
-                             (', '.join(problem_config['task_keywords']), ', '.join(valid_task_keywords)))
+                             (task_keyword, ', '.join(valid_task_keywords)))
 
     valid_metrics = {metric for metric in PerformanceMetricBase.get_map()}
     if problem_config['metric'] is None:

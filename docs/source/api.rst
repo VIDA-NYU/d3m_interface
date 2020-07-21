@@ -1,6 +1,13 @@
 API
 =========
 
+.. function:: Automl(output_path, ta2_name)
+
+   Create/instantiate an Automl object
+
+   :param output_path: path to the output directory
+   :param ta2_name: Ta2 system name. It makes reference to the ta2 docker image. The provided ta2 systems are the following: ``NYU, CMU, SRI, TAMU``
+
 .. function:: search_pipelines(dataset, time_bound, target=None, metric=None, task_keywords=None)
 
    Perform the search of pipelines
