@@ -16,7 +16,7 @@ API
    :param time_bound: limit time to perform the search
    :param target: Optional. column name of the potential target variable for a problem.
    :param metric: Optional. the provided metrics are the following: ``hammingLoss, accuracy, objectDetectionAP, rocAucMicro, f1Macro, meanSquaredError, f1, jaccardSimilarityScore, normalizedMutualInformation, rocAuc, f1Micro, hitsAtK, meanAbsoluteError, rocAucMacro, rSquared, recall, meanReciprocalRank, precision, precisionAtTopK, rootMeanSquaredError``
-   :param task_keywords: Optional. a list of keywords that capture the nature of the machine learning task. The keywords that can be combined to describe the task are the following: ``overlapping, graphMatching, multiLabel, multivariate, timeSeriesForecasting, semiSupervisedRegression, univariate, nonOverlapping, multiClass, classification, binary, linkPrediction, regression, vertexClassification, vertexNomination, objectDetection, clustering, collaborativeFiltering, semiSupervisedClassification, communityDetection``
+   :param task_keywords: Optional. a list of keywords that capture the nature of the machine learning task. The keywords that can be combined to describe the task are the following: ``tabular, nested, multiLabel, video, linkPrediction, multivariate, graphMatching, forecasting, classification, graph, semiSupervised, text, timeSeries, clustering, collaborativeFiltering, univariate, missingMetadata, remoteSensing, multiClass, regression, multiGraph, lupi, relational, audio, grouped, objectDetection, vertexNomination, communityDetection, geospatial, image, overlapping, nonOverlapping, speech, vertexClassification, binary``
    :returns: JSON structure (dict)
 
 .. function:: train(solution_id)
