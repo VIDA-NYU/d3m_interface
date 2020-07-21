@@ -22,7 +22,9 @@ setuptools.setup(
         'ta3ta2-api @ git+https://gitlab.com/datadrivendiscovery/ta3ta2-api.git@1c06dc505ad517becde0866e1aa9925513ad599c',
         'd3m @ git+https://gitlab.com/datadrivendiscovery/d3m.git@devel#egg=d3m',
         'pipelineprofiler==0.1.15',
-        'pandas==1.0.3'
+        'pandas==1.0.3',
+        'altair==4.1.0',
+        'datamart_profiler==0.6.2'
     ],
     python_requires='>=3.6',
 )

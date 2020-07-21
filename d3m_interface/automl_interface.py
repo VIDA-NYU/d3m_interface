@@ -6,13 +6,13 @@ import signal
 import subprocess
 import pandas as pd
 import datetime
+import datamart_profiler
 from os.path import join, split
 from d3m_interface.basic_ta3 import BasicTA3
+from d3m_interface.visualization import histogram_summaries
 from d3m_interface.data_converter import is_d3m_format, convert_d3m_format
 from d3m.metadata.problem import PerformanceMetric
-import altair as alt
-import datamart_profiler
-import numpy
+from d3m.utils import silence
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s', stream=sys.stdout)
 logger = logging.getLogger(__name__)
@@ -283,79 +283,22 @@ class Automl:
 
         return ', '.join(primitives_summary)
 
-    def convert_to_DF(data):
-        data_dict = {}
-        for key in data[0]:
-            data_dict[key] = [element[key] for element in data]
-        df = pd.DataFrame(data_dict)
-        return df
-
-    # path of the csv data
-    def plot_data_summary (path_data):
-        df_csv = pd.read_csv(path_data, header = 0)
-        # datamart-prolifer library
-        metadata = datamart_profiler.process_dataset(df_csv, plots=True)
-
-    def histogram_summaries (metadata):
-        chart_t = alt.hconcat()
-        for column in metadata['columns']:
-            if 'plot' in column:
-                col_type = column['plot']['type']
-                plot_data = convert_to_DF(column['plot']['data'])
-                if col_type == 'histogram_numerical':
-                    chart = alt.Chart(plot_data).mark_bar().encode(
-                        x=alt.X('bin_start', bin='binned', axis=alt.Axis(title='')),
-                        x2='bin_end',
-                        y=alt.Y('count', axis=alt.Axis(title='')),
-                        tooltip=['bin_start', 'bin_end']
-                    ).properties(title={'text': column['name']},
-                        width=100,
-                        height=100
-                    )
-                if col_type == 'histogram_categorical':
-                    chart = alt.Chart(plot_data).mark_bar().encode(
-                        x=alt.X('bin', axis=alt.Axis(title='')),
-                        y=alt.Y('count', axis=alt.Axis(title='')),
-                        tooltip=['bin']
-                    ).properties(
-                        title=column['name'],
-                        width=100,
-                        height=100
-                    )
-                if col_type == 'histogram_temporal':
-                    chart = alt.Chart(plot_data).mark_bar().encode(
-                        x=alt.X('date_start', bin='binned'),
-                        x2='date_end',
-                        y='count',
-                        tooltip=['date_start', 'date_end']
-                    ).properties(
-                        title=column['name'],
-                        width=100,
-                        height=100
-                    )
-                if col_type == 'histogram_text':
-                    chart = alt.Chart(plot_data).mark_bar().encode(
-                        y=alt.X('bin', axis=alt.Axis(title='')),
-                        x=alt.Y('count', axis=alt.Axis(title='')),
-                        tooltip=['bin', 'count']
-                    ).properties(
-                        title=column['name'],
-                        width=100,
-                        height=100
-                    )
-                chart.configure_title(
-                        fontSize=14,
-                        font='Courier',
-                        anchor='middle',
-                        color='gray'
-                    )
-                chart_t |= chart
-        chart_t.display()
 
     @staticmethod
     def add_new_ta2(name, docker_image):
         TA2_DOCKER_IMAGES[name] = docker_image
         logger.info('%s TA2 added!', name)
 
+    @staticmethod
+    def plot_summary_dataset(dataset_path):
+        suffix = dataset_path.split('/')[-1]
+        with silence():
+            if is_d3m_format(dataset_path, suffix):
+                metadata = datamart_profiler.process_dataset(
+                    join(dataset_path, 'dataset_%s/tables/learningData.csv' % suffix),
+                    plots=True)
 
+            elif dataset_path.endswith('.csv'):
+                metadata = datamart_profiler.process_dataset(dataset_path, plots=True)
 
+        histogram_summaries(metadata)
