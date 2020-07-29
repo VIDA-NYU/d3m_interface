@@ -13,9 +13,10 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://gitlab.com/ViDA-NYU/d3m/d3m_interface",
     packages=setuptools.find_packages(),
+    license='Apache-2.0',
     classifiers=[
         "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: MIT License",
+        'License :: OSI Approved :: Apache Software License',
         "Operating System :: OS Independent",
     ],
     install_requires=[
