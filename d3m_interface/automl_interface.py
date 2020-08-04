@@ -134,7 +134,9 @@ class Automl:
         return predictions
 
     def score(self, solution_id, test_dataset):
-        #  TODO: Use TA2TA3 API to score
+        suffix = 'SCORE'
+        if not is_d3m_format(test_dataset, suffix):
+            convert_d3m_format(test_dataset, self.output_folder, self.problem_config, suffix)
 
         if solution_id not in self.pipelines:
             logger.error('Pipeline id=%s does not exist' % solution_id)
@@ -156,6 +158,7 @@ class Automl:
         score = None
 
         try:
+            #  TODO: Use TA2TA3 API to score
             process = subprocess.Popen(
                 [
                     'docker', 'exec', 'ta2_container',
@@ -282,7 +285,6 @@ class Automl:
                     primitives_summary.append(primitive_name_short)
 
         return ', '.join(primitives_summary)
-
 
     @staticmethod
     def add_new_ta2(name, docker_image):
