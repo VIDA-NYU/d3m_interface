@@ -24,8 +24,7 @@ Searching pipelines::
     train_dataset = './D3M/examples/185_baseball/TRAIN'
     test_dataset = './D3M/examples/185_baseball/TEST'
     score_dataset = './D3M/examples/185_baseball/SCORE'
-    # Automl.add_new_ta2('<TA2_NAME>', '<TA2_DOCKER_IMAGE_URL>') Uncomment to add a new TA2
-    automl = Automl(output_path, 'TAMU')
+    automl = Automl(output_path, 'NYU')
     pipelines = automl.search_pipelines(train_dataset, time_bound=5)
 
 Display leaderboard::
@@ -82,4 +81,6 @@ Pipeline Comparison view highlights the differences among selected pipelines. It
     :align: center
 
 There is more information about how to use PipelineProfiler `here <https://towardsdatascience.com/exploring-auto-sklearn-models-with-pipelineprofiler-5b2c54136044>`__.
+
+We also provide more Jupyter notebook examples about how to use d3m-interface in our `repository <https://gitlab.com/ViDA-NYU/d3m/d3m_interface/-/tree/master/examples>`__.
 
