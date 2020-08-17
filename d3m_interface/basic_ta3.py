@@ -25,11 +25,7 @@ class BasicTA3:
         self.core.ListPrimitives(pb_core.ListPrimitivesRequest())
 
     def do_search(self, dataset_path, problem_path, time_bound=30.0, pipelines_limit=0, pipeline_template=None):
-        try:
-            problem = Problem.load(problem_uri=fix_uri(problem_path))
-        except:
-            logger.exception('Error parsing problem')
-
+        problem = Problem.load(problem_uri=fix_uri(problem_path))
         version = pb_core.DESCRIPTOR.GetOptions().Extensions[pb_core.protocol_version]
 
         search = self.core.SearchSolutions(pb_core.SearchSolutionsRequest(
@@ -59,12 +55,9 @@ class BasicTA3:
                 yield {'id': pipeline_id, 'search_id': str(search.search_id)}
 
     def do_score(self, solution_id, dataset_path, problem_path):
-        try:
-            problem = Problem.load(problem_uri=fix_uri(problem_path))
-        except:
-            logger.exception('Error parsing problem')
-
+        problem = Problem.load(problem_uri=fix_uri(problem_path))
         metrics = []
+        score_data = None
 
         for metric in problem['problem']['performance_metrics']:
             metrics.append(encode_performance_metric(metric))
@@ -85,11 +78,13 @@ class BasicTA3:
                 random_seed=0
             ),
         ))
+
         results = self.core.GetScoreSolutionResults(
             pb_core.GetScoreSolutionResultsRequest(
                 request_id=response.request_id,
             )
         )
+
         for result in results:
             if result.progress.state == pb_core.COMPLETED:
                 scores = []
@@ -103,59 +98,64 @@ class BasicTA3:
                     avg_score = round(sum(scores) / len(scores), 5)
                     normalized_score = PerformanceMetric[target_metric.name].normalize(avg_score)
 
-                    return {'score': avg_score, 'normalized_score': normalized_score,
-                            'metric': target_metric.name.lower()}
+                    score_data = {'score': avg_score, 'normalized_score': normalized_score,
+                                  'metric': target_metric.name.lower()}
+        if score_data is None:
+            raise TypeError('Pipeline got a None value during scoring')
+
+        return score_data
 
     def do_train(self, solution_id, dataset_path):
         fitted_solution = None
 
-        try:
-            response = self.core.FitSolution(pb_core.FitSolutionRequest(
-                solution_id=solution_id,
-                inputs=[pb_value.Value(
-                    dataset_uri='file://%s' % dataset_path,
-                )],
-                expose_outputs=[],
-                expose_value_types=['CSV_URI'],
-                users=[],
-            ))
-            results = self.core.GetFitSolutionResults(
-                pb_core.GetFitSolutionResultsRequest(
-                    request_id=response.request_id,
-                )
+        response = self.core.FitSolution(pb_core.FitSolutionRequest(
+            solution_id=solution_id,
+            inputs=[pb_value.Value(
+                dataset_uri='file://%s' % dataset_path,
+            )],
+            expose_outputs=[],
+            expose_value_types=['CSV_URI'],
+            users=[],
+        ))
+        results = self.core.GetFitSolutionResults(
+            pb_core.GetFitSolutionResultsRequest(
+                request_id=response.request_id,
             )
-            for result in results:
-                if result.progress.state == pb_core.COMPLETED:
-                    fitted_solution = result.fitted_solution_id
-        except:
-            logger.exception("Exception training %r", solution_id)
+        )
+        for result in results:
+            if result.progress.state == pb_core.COMPLETED:
+                fitted_solution = result.fitted_solution_id
+
+        if fitted_solution is None:
+            raise TypeError('Pipeline got a None value during training')
 
         return fitted_solution
 
     def do_test(self, fitted_solution_id, dataset_path):
-        tested = None
-        try:
-            response = self.core.ProduceSolution(pb_core.ProduceSolutionRequest(
-                fitted_solution_id=fitted_solution_id,
-                inputs=[pb_value.Value(
-                    dataset_uri='file://%s' % dataset_path,
-                )],
-                expose_outputs=['outputs.0'],
-                expose_value_types=['CSV_URI'],
-                users=[],
-            ))
-            results = self.core.GetProduceSolutionResults(
-                pb_core.GetProduceSolutionResultsRequest(
-                    request_id=response.request_id,
-                )
-            )
-            for result in results:
-                if result.progress.state == pb_core.COMPLETED:
-                    tested = result.exposed_outputs['outputs.0'].csv_uri
-        except:
-            logger.exception("Exception testing %r", fitted_solution_id)
+        tested_solution = None
 
-        return tested
+        response = self.core.ProduceSolution(pb_core.ProduceSolutionRequest(
+            fitted_solution_id=fitted_solution_id,
+            inputs=[pb_value.Value(
+                dataset_uri='file://%s' % dataset_path,
+            )],
+            expose_outputs=['outputs.0'],
+            expose_value_types=['CSV_URI'],
+            users=[],
+        ))
+        results = self.core.GetProduceSolutionResults(
+            pb_core.GetProduceSolutionResultsRequest(
+                request_id=response.request_id,
+            )
+        )
+        for result in results:
+            if result.progress.state == pb_core.COMPLETED:
+                tested_solution = result.exposed_outputs['outputs.0'].csv_uri
+
+        if tested_solution is None:
+            raise TypeError('Pipeline got a None value during testing')
+
+        return tested_solution
 
     def do_export(self, fitted):
         for i, fitted_solution in enumerate(fitted.values()):
@@ -165,19 +165,17 @@ class BasicTA3:
                     rank=(i + 1.0) / (len(fitted) + 1.0),
                 ))
             except:
-                logger.exception("Exception exporting %r", fitted_solution)
+                logger.exception('Exception exporting %r', fitted_solution)
 
     def do_describe(self, solution_id):
-        pipeline_description = None
-        try:
-            pipeline_description = self.core.DescribeSolution(pb_core.DescribeSolutionRequest(
-                solution_id=solution_id,
-            )).pipeline
-        except:
-            logger.exception("Exception during describe %r", solution_id)
+        pipeline = None
+        pipeline_description = self.core.DescribeSolution(pb_core.DescribeSolutionRequest(solution_id=solution_id)).pipeline
 
         with silence():
             pipeline = decode_pipeline_description(pipeline_description, pipeline_module.NoResolver())
+
+        if pipeline is None:
+            raise TypeError('Pipeline got a None value during decoding')
 
         return pipeline.to_json_structure()
 
