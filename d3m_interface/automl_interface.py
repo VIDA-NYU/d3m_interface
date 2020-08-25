@@ -13,6 +13,7 @@ from d3m_interface.visualization import histogram_summaries
 from d3m_interface.data_converter import is_d3m_format, convert_d3m_format
 from d3m.metadata.problem import PerformanceMetric
 from d3m.utils import silence
+from threading import Thread
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s', stream=sys.stdout)
 logger = logging.getLogger(__name__)
@@ -62,6 +63,8 @@ class Automl:
         start_time = datetime.datetime.utcnow()
         pipelines = self.ta3.do_search(dataset_in_container, problem_path, time_bound)
 
+        jobs = []
+
         for pipeline in pipelines:
             end_time = datetime.datetime.utcnow()
             try:
@@ -70,22 +73,23 @@ class Automl:
                 logger.error('Decoding pipeline id=%s', pipeline['id'])
                 continue
             summary_pipeline = self.get_summary_pipeline(pipeline_json)
+            search_id = pipeline['search_id']
             pipeline['json_representation'] = pipeline_json
             pipeline['summary'] = summary_pipeline
             pipeline['found_time'] = end_time.isoformat() + 'Z'
             duration = str(end_time - start_time)
-            try:
-                score_data = self.ta3.do_score(pipeline['id'], dataset_in_container, problem_path)
-            except:
-                logger.error('Scoring pipeline id=%s', pipeline['id'])
-                continue
-            pipeline['score'] = score_data['score']
-            pipeline['normalized_score'] = score_data['normalized_score']
-            pipeline['metric'] = score_data['metric']
-            logger.info('Found pipeline, id=%s, %s=%s, time=%s' %
-                        (pipeline['id'], pipeline['metric'], pipeline['score'], duration))
-            self.pipelines[pipeline['id']] = pipeline
-            search_id = pipeline['search_id']
+            logger.info('Found pipeline id=%s, time=%s, scoring...' % (pipeline['id'], duration))
+
+            job = Thread(target=self.score_job, args=(pipeline, dataset_in_container, problem_path, self.pipelines))
+            jobs.append(job)
+            job.start()
+
+        logger.info('Search completed, still scoring some pending pipelines...')
+
+        for job in jobs:
+            job.join()
+
+        logger.info('Scoring completed for all pipelines!')
 
         if len(self.pipelines) > 0:
             leaderboard = []
@@ -103,7 +107,7 @@ class Automl:
         dataset_in_container = '/input/dataset/TRAIN/dataset_TRAIN/datasetDoc.json'
 
         if solution_id not in self.pipelines:
-            logger.error('Pipeline id=%s does not exist' % solution_id)
+            logger.warning('Pipeline id=%s does not exist' % solution_id)
             return
 
         logger.info('Training model...')
@@ -139,7 +143,7 @@ class Automl:
             convert_d3m_format(test_dataset, self.output_folder, self.problem_config, suffix)
 
         if solution_id not in self.pipelines:
-            logger.error('Pipeline id=%s does not exist' % solution_id)
+            logger.warning('Pipeline id=%s does not exist' % solution_id)
             return
 
         pipeline_id = self.pipelines[solution_id]['json_representation']['id']
@@ -274,6 +278,17 @@ class Automl:
             process.wait()
 
         logger.info('Session ended!')
+
+    def score_job(self, pipeline, dataset_in_container, problem_path, pipelines):
+        try:
+            score_data = self.ta3.do_score(pipeline['id'], dataset_in_container, problem_path)
+            logger.info('Scored pipeline id=%s, %s=%s' % (pipeline['id'], score_data['metric'], score_data['score']))
+            pipeline['score'] = score_data['score']
+            pipeline['normalized_score'] = score_data['normalized_score']
+            pipeline['metric'] = score_data['metric']
+            pipelines[pipeline['id']] = pipeline
+        except:
+            logger.warning('Pipeline id=%s could not be scored', pipeline['id'])
 
     def get_summary_pipeline(self, pipeline_json):
         primitives_summary = []
