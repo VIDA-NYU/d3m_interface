@@ -24,7 +24,7 @@ class BasicTA3:
     def do_listprimitives(self):
         self.core.ListPrimitives(pb_core.ListPrimitivesRequest())
 
-    def do_search(self, dataset_path, problem_path, time_bound=30.0, pipelines_limit=0, pipeline_template=None):
+    def do_search(self, dataset_path, problem_path, time_bound, time_bound_run, pipeline_template=None):
         problem = Problem.load(problem_uri=fix_uri(problem_path))
         version = pb_core.DESCRIPTOR.GetOptions().Extensions[pb_core.protocol_version]
 
@@ -32,8 +32,9 @@ class BasicTA3:
             user_agent='basicta3_stub',
             version=version,
             time_bound_search=time_bound,
+            time_bound_run=time_bound_run,
             priority=10,
-            rank_solutions_limit=pipelines_limit,
+            rank_solutions_limit=0,
             allowed_value_types=['RAW', 'DATASET_URI', 'CSV_URI'],
             template=pipeline_template,
             problem=encode_problem_description(problem),

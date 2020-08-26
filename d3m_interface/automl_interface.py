@@ -46,10 +46,12 @@ class Automl:
         self.leaderboard = None
         self.problem_config = None
 
-    def search_pipelines(self, dataset, time_bound, target=None, metric=None, task_keywords=None):
+    def search_pipelines(self, dataset, time_bound, time_bound_run=10, target=None, metric=None, task_keywords=None,
+                         **kwargs):
         suffix = 'TRAIN'
         if not is_d3m_format(dataset, suffix):
-            self.problem_config = {'target_column': target, 'metric': metric, 'task_keywords': task_keywords}
+            self.problem_config = {'target_column': target, 'metric': metric, 'task_keywords': task_keywords,
+                                   'optional': kwargs}
             dataset = convert_d3m_format(dataset, self.output_folder, self.problem_config, suffix)
 
         self.dataset = split(dataset)[0]
@@ -61,7 +63,7 @@ class Automl:
         dataset_in_container = '/input/dataset/TRAIN/dataset_TRAIN/datasetDoc.json'
         problem_path = join(dataset, 'problem_TRAIN/problemDoc.json')
         start_time = datetime.datetime.utcnow()
-        pipelines = self.ta3.do_search(dataset_in_container, problem_path, time_bound)
+        pipelines = self.ta3.do_search(dataset_in_container, problem_path, time_bound, time_bound_run)
 
         jobs = []
 
