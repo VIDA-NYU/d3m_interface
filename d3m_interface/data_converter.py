@@ -54,6 +54,11 @@ def check_problem_config(problem_config):
         raise ValueError('Unknown "%s" metric, you should choose among [%s]' %
                          (problem_config['metric'], ', '.join(valid_metrics)))
 
+    #  Check special cases
+    if problem_config['metric'] == 'f1' and 'binary' in problem_config['task_keywords'] and \
+            'pos_label' not in problem_config['optional']:
+        raise ValueError('pos_label parameter is mandatory for f1 and binary problems')
+
     return problem_config
 
 
@@ -76,6 +81,10 @@ def create_d3m_problem(dataset, destination_path, problem_config):
     if exists(destination_path):
         shutil.rmtree(destination_path)
     os.makedirs(destination_path)
+
+    metric = {"metric": problem_config['metric']}
+    if 'pos_label' in problem_config['optional']:
+        metric['posLabel'] = str(problem_config['optional']['pos_label'])
 
     problem_json = {
           "about": {
@@ -100,11 +109,7 @@ def create_d3m_problem(dataset, destination_path, problem_config):
                 ]
               }
             ],
-            "performanceMetrics": [
-              {
-                "metric": problem_config['metric']
-              }
-            ]
+            "performanceMetrics": [metric]
           },
           "expectedOutputs": {
             "predictionsFile": "predictions.csv"
