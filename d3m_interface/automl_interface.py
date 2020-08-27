@@ -6,14 +6,13 @@ import signal
 import subprocess
 import pandas as pd
 import datetime
-import datamart_profiler
-from os.path import join, split
+from os.path import join, split, exists
 from d3m_interface.basic_ta3 import BasicTA3
-from d3m_interface.visualization import histogram_summaries
+from d3m_interface.visualization import plot_metadata
 from d3m_interface.data_converter import is_d3m_format, convert_d3m_format
 from d3m.metadata.problem import PerformanceMetric
-from d3m.utils import silence
 from threading import Thread
+
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s', stream=sys.stdout)
 logger = logging.getLogger(__name__)
@@ -72,7 +71,7 @@ class Automl:
             try:
                 pipeline_json = self.ta3.do_describe(pipeline['id'])
             except:
-                logger.error('Decoding pipeline id=%s', pipeline['id'])
+                logger.warning('Pipeline id=%s could not be decoded' % pipeline['id'])
                 continue
             summary_pipeline = self.get_summary_pipeline(pipeline_json)
             search_id = pipeline['search_id']
@@ -109,8 +108,7 @@ class Automl:
         dataset_in_container = '/input/dataset/TRAIN/dataset_TRAIN/datasetDoc.json'
 
         if solution_id not in self.pipelines:
-            logger.warning('Pipeline id=%s does not exist' % solution_id)
-            return
+            raise ValueError('Pipeline id=%s does not exist' % solution_id)
 
         logger.info('Training model...')
         fitted_solution_id = self.ta3.do_train(solution_id, dataset_in_container)
@@ -122,6 +120,7 @@ class Automl:
 
     def test(self, model, test_dataset):
         suffix = 'TEST'
+
         if not is_d3m_format(test_dataset, suffix):
             convert_d3m_format(test_dataset, self.output_folder, self.problem_config, suffix)
 
@@ -131,7 +130,7 @@ class Automl:
         predictions_path_in_container = self.ta3.do_test(fitted_solution_id, dataset_in_container)
 
         if not predictions_path_in_container.startswith('file://'):
-            raise ValueError('Exposed output "%s" from TA2 cannot be read', predictions_path_in_container)
+            raise FileNotFoundError('Exposed output "%s" from TA2 cannot be read', predictions_path_in_container)
 
         logger.info('Testing finished!')
         predictions_path_in_container = predictions_path_in_container.replace('file:///output/', '')
@@ -141,17 +140,17 @@ class Automl:
 
     def score(self, solution_id, test_dataset):
         suffix = 'SCORE'
-        if not is_d3m_format(test_dataset, suffix):
-            convert_d3m_format(test_dataset, self.output_folder, self.problem_config, suffix)
 
         if solution_id not in self.pipelines:
-            logger.warning('Pipeline id=%s does not exist' % solution_id)
-            return
+            raise ValueError('Pipeline id=%s does not exist' % solution_id)
+
+        if not is_d3m_format(test_dataset, suffix):
+            convert_d3m_format(test_dataset, self.output_folder, self.problem_config, suffix)
 
         pipeline_id = self.pipelines[solution_id]['json_representation']['id']
 
         with open(join(self.output_folder, '%s.json' % pipeline_id), 'w') as fout:
-            json.dump(self.pipelines[solution_id]['json_representation'], fout)
+            json.dump(self.pipelines[solution_id]['json_representation'], fout)  # Save temporally the json pipeline
 
         dataset_in_container = '/input/dataset/'
         dataset_train_path = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
@@ -160,34 +159,32 @@ class Automl:
         problem_path = join(dataset_in_container, 'TRAIN/problem_TRAIN/problemDoc.json')
         pipeline_path = join('/output/', '%s.json' % pipeline_id)
         score_pipeline_path = join('/output/', 'fit_score_%s.csv' % pipeline_id)
-        metric = None
-        score = None
 
-        try:
-            #  TODO: Use TA2TA3 API to score
-            process = subprocess.Popen(
-                [
-                    'docker', 'exec', 'ta2_container',
-                    'python3', '-m', 'd3m',
-                    'runtime',
-                    '--context', 'TESTING',
-                    '--random-seed', '0',
-                    'fit-score',
-                    '--pipeline', pipeline_path,
-                    '--problem', problem_path,
-                    '--input', dataset_train_path,
-                    '--test-input', dataset_test_path,
-                    '--score-input', dataset_score_path,
-                    '--scores', score_pipeline_path
-                ]
-            )
-            process.wait()
-            df = pd.read_csv(join(self.output_folder, 'fit_score_%s.csv' % pipeline_id))
-            score = round(df['value'][0], 5)
-            metric = df['metric'][0].lower()
-        except:
-            logger.exception('Scoring pipeline in test dataset')
-            return
+        #  TODO: Use TA2TA3 API to score
+        process = subprocess.Popen(
+            [
+                'docker', 'exec', 'ta2_container',
+                'python3', '-m', 'd3m',
+                'runtime',
+                '--context', 'TESTING',
+                '--random-seed', '0',
+                'fit-score',
+                '--pipeline', pipeline_path,
+                '--problem', problem_path,
+                '--input', dataset_train_path,
+                '--test-input', dataset_test_path,
+                '--score-input', dataset_score_path,
+                '--scores', score_pipeline_path
+            ]
+        )
+        process.wait()
+        result_path = join(self.output_folder, 'fit_score_%s.csv' % pipeline_id)
+        if not exists(result_path):
+            raise FileNotFoundError('Pipeline id=%s could not be scored' % solution_id)
+
+        df = pd.read_csv(result_path)
+        score = round(df['value'][0], 5)
+        metric = df['metric'][0].lower()
 
         return metric, score
 
@@ -213,7 +210,11 @@ class Automl:
                 if test_dataset is not None:
                     problem = test_dataset
                     start_time = datetime.datetime.utcnow().isoformat() + 'Z'
-                    metric, score,  = self.score(pipeline['id'], test_dataset)
+                    try:
+                        metric, score,  = self.score(pipeline['id'], test_dataset)
+                    except:
+                        logger.warning('Pipeline id=%s could not be scored' % pipeline['id'])
+                        continue
                     end_time = datetime.datetime.utcnow().isoformat() + 'Z'
                     normalized_score = PerformanceMetric[metric.upper()].normalize(score)
                     pipeline_score = [{'metric': {'metric': metric}, 'value': score,
@@ -311,13 +312,8 @@ class Automl:
     @staticmethod
     def plot_summary_dataset(dataset_path):
         suffix = dataset_path.split('/')[-1]
-        with silence():
-            if is_d3m_format(dataset_path, suffix):
-                metadata = datamart_profiler.process_dataset(
-                    join(dataset_path, 'dataset_%s/tables/learningData.csv' % suffix),
-                    plots=True)
 
-            elif dataset_path.endswith('.csv'):
-                metadata = datamart_profiler.process_dataset(dataset_path, plots=True)
+        if is_d3m_format(dataset_path, suffix):
+            dataset_path = join(dataset_path, 'dataset_%s/tables/learningData.csv' % suffix)
 
-        histogram_summaries(metadata)
+        plot_metadata(dataset_path)
