@@ -55,8 +55,9 @@ class BasicTA3:
                 pipeline_id = result.solution_id
                 yield {'id': pipeline_id, 'search_id': str(search.search_id)}
 
-    def do_score(self, solution_id, dataset_path, problem_path):
+    def do_score(self, solution_id, dataset_path, problem_path, method, stratified, shuffle, folds, train_ratio, random_seed):
         problem = Problem.load(problem_uri=fix_uri(problem_path))
+        methods_mapping = {'cross_validation': 'K_FOLD', 'holdout': 'HOLDOUT'}
         metrics = []
         score_data = None
 
@@ -73,10 +74,12 @@ class BasicTA3:
             performance_metrics=metrics,
             users=[],
             configuration=pb_core.ScoringConfiguration(
-                method='HOLDOUT',
-                train_test_ratio=0.75,
-                shuffle=True,
-                random_seed=0
+                method=methods_mapping[method],
+                stratified=stratified,
+                shuffle=shuffle,
+                folds=folds,
+                train_test_ratio=train_ratio,
+                random_seed=random_seed
             ),
         ))
 

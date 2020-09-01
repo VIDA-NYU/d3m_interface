@@ -45,7 +45,8 @@ class Automl:
         self.leaderboard = None
         self.problem_config = None
 
-    def search_pipelines(self, dataset, time_bound, time_bound_run=10, target=None, metric=None, task_keywords=None,
+    def search_pipelines(self, dataset, time_bound, time_bound_run=5, target=None, metric=None, task_keywords=None,
+                         method='holdout', stratified=True, shuffle=True, folds=10, train_ratio=0.75, random_seed=0,
                          **kwargs):
         suffix = 'TRAIN'
         if not is_d3m_format(dataset, suffix):
@@ -81,7 +82,8 @@ class Automl:
             duration = str(end_time - start_time)
             logger.info('Found pipeline id=%s, time=%s, scoring...' % (pipeline['id'], duration))
 
-            job = Thread(target=self.score_job, args=(pipeline, dataset_in_container, problem_path, self.pipelines))
+            job = Thread(target=self.score_in_search, args=(pipeline, dataset_in_container, problem_path, self.pipelines,
+                                                            method, stratified, shuffle, folds, train_ratio, random_seed))
             jobs.append(job)
             job.start()
 
@@ -282,9 +284,11 @@ class Automl:
 
         logger.info('Session ended!')
 
-    def score_job(self, pipeline, dataset_in_container, problem_path, pipelines):
+    def score_in_search(self, pipeline, dataset_in_container, problem_path, pipelines, method, stratified, shuffle,
+                        folds, train_ratio, random_seed):
         try:
-            score_data = self.ta3.do_score(pipeline['id'], dataset_in_container, problem_path)
+            score_data = self.ta3.do_score(pipeline['id'], dataset_in_container, problem_path, method, stratified,
+                                           shuffle, folds, train_ratio, random_seed)
             logger.info('Scored pipeline id=%s, %s=%s' % (pipeline['id'], score_data['metric'], score_data['score']))
             pipeline['score'] = score_data['score']
             pipeline['normalized_score'] = score_data['normalized_score']
