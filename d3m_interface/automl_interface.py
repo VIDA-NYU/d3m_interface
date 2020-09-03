@@ -30,6 +30,15 @@ IGNORE_SUMMARY_PRIMITIVES = {'d3m.primitives.data_transformation.construct_predi
                              'd3m.primitives.data_transformation.column_parser.Common'}
 
 
+def kernel_interrupt_handler(signal, frame):
+    logger.info('KeyboardInterrupt signal received, ending session...')
+    process = subprocess.Popen(['docker', 'stop', 'ta2_container'])
+    process.wait()
+    logger.info('Session ended!')
+
+    raise KeyboardInterrupt
+
+
 class Automl:
 
     def __init__(self, output_folder, ta2_id='NYU'):
@@ -49,6 +58,7 @@ class Automl:
                          method='holdout', stratified=True, shuffle=True, folds=10, train_ratio=0.75, random_seed=0,
                          **kwargs):
         suffix = 'TRAIN'
+        signal.signal(signal.SIGINT, kernel_interrupt_handler)
         if not is_d3m_format(dataset, suffix):
             self.problem_config = {'target_column': target, 'metric': metric, 'task_keywords': task_keywords,
                                    'optional': kwargs}
