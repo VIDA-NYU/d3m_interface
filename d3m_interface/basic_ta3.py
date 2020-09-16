@@ -105,19 +105,20 @@ class BasicTA3:
                     score_data = {'score': avg_score, 'normalized_score': normalized_score,
                                   'metric': target_metric.name.lower()}
         if score_data is None:
-            raise TypeError('Pipeline got a None value during scoring')
+            raise RuntimeError('Got an errored status during scoring')
 
         return score_data
 
-    def do_train(self, solution_id, dataset_path):
-        fitted_solution = None
+    def do_train(self, solution_id, dataset_path, expose_outputs):
+        fitted_solution_id = None
+        pipeline_step_outputs = {}
 
         response = self.core.FitSolution(pb_core.FitSolutionRequest(
             solution_id=solution_id,
             inputs=[pb_value.Value(
                 dataset_uri='file://%s' % dataset_path,
             )],
-            expose_outputs=[],
+            expose_outputs=expose_outputs,
             expose_value_types=['CSV_URI'],
             users=[],
         ))
@@ -128,22 +129,24 @@ class BasicTA3:
         )
         for result in results:
             if result.progress.state == pb_core.COMPLETED:
-                fitted_solution = result.fitted_solution_id
+                fitted_solution_id = result.fitted_solution_id
+                for exposed_output in result.exposed_outputs:
+                    pipeline_step_outputs[exposed_output] = result.exposed_outputs[exposed_output].csv_uri
 
-        if fitted_solution is None:
-            raise TypeError('Pipeline got a None value during training')
+        if fitted_solution_id is None:
+            raise RuntimeError('Got an errored status during training')
 
-        return fitted_solution
+        return fitted_solution_id, pipeline_step_outputs
 
-    def do_test(self, fitted_solution_id, dataset_path):
-        tested_solution = None
+    def do_test(self, fitted_solution_id, dataset_path, expose_outputs):
+        pipeline_step_outputs = {}
 
         response = self.core.ProduceSolution(pb_core.ProduceSolutionRequest(
             fitted_solution_id=fitted_solution_id,
             inputs=[pb_value.Value(
                 dataset_uri='file://%s' % dataset_path,
             )],
-            expose_outputs=['outputs.0'],
+            expose_outputs=expose_outputs,
             expose_value_types=['CSV_URI'],
             users=[],
         ))
@@ -154,12 +157,13 @@ class BasicTA3:
         )
         for result in results:
             if result.progress.state == pb_core.COMPLETED:
-                tested_solution = result.exposed_outputs['outputs.0'].csv_uri
+                for exposed_output in result.exposed_outputs:
+                    pipeline_step_outputs[exposed_output] = result.exposed_outputs[exposed_output].csv_uri
 
-        if tested_solution is None:
-            raise TypeError('Pipeline got a None value during testing')
+        if len(pipeline_step_outputs) == 0:
+            raise RuntimeError('Got an errored status during testing')
 
-        return tested_solution
+        return pipeline_step_outputs
 
     def do_export(self, fitted):
         for i, fitted_solution in enumerate(fitted.values()):

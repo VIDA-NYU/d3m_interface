@@ -86,7 +86,7 @@ class Automl:
         :param train_ratio: Represent the proportion of the dataset to include in the train split
         :param random_seed: The number seed used by the random generator
         :param kwargs: Different arguments for problem's settings (e.g. pos_label for binary problems using F1)
-        :returns: JSON structure (dict)
+        :returns: List of pipelines
         """
         suffix = 'TRAIN'
         signal.signal(signal.SIGINT, kernel_interrupt_handler)
@@ -147,31 +147,59 @@ class Automl:
         signal.alarm(0)
         return self.pipelines.values()
 
-    def train(self, solution_id):
+    def train(self, pipeline_id, expose_outputs=None):
         """Train a model using an specific ML pipeline
 
-        :param solution_id: Pipeline id
-        :returns: Return model id
+        :param pipeline_id: Pipeline id
+        :param expose_outputs: The output of the pipeline steps. If None, it doesn't expouse any output of the steps.
+        If str, should be 'all' to shows the output of each step in the pipeline, If list, it should contain the ids of
+        the steps, e.g. 'steps.2.produce'
+        :returns: A dictionary that contains the id and fitted model with/without the pipeline step outputs
         """
+
         dataset_in_container = '/input/dataset/TRAIN/dataset_TRAIN/datasetDoc.json'
 
-        if solution_id not in self.pipelines:
-            raise ValueError('Pipeline id=%s does not exist' % solution_id)
+        if pipeline_id not in self.pipelines:
+            raise ValueError('Pipeline id=%s does not exist' % pipeline_id)
 
         logger.info('Training model...')
-        fitted_solution_id = self.ta3.do_train(solution_id, dataset_in_container)
-        fitted_solution = None  # TODO: Call to LoadFittedSolution, but TA2 could not have implemented it yet
-        model = {fitted_solution_id: fitted_solution}
+        if expose_outputs is None:
+            expose_outputs = []
+        elif isinstance(expose_outputs, str) and expose_outputs == 'all':
+            expose_outputs = ['outputs.0']
+            for index, step in enumerate(self.pipelines[pipeline_id]['json_representation']['steps']):
+                for id_output in step['outputs']:
+                    expose_outputs.append('steps.%d.%s' % (index, id_output['id']))
+
+        fitted_pipeline_id, pipeline_step_outputs = self.ta3.do_train(pipeline_id, dataset_in_container, expose_outputs)
+        fitted_pipeline = None  # TODO: Call to LoadFittedSolution, but TA2 could not have implemented it yet
+
+        for step_id, step_csv_uri in pipeline_step_outputs.items():
+            if not step_csv_uri.startswith('file://'):
+                logger.warning('Exposed step output "%s" cannot be read' % step_id)
+                continue
+            step_csv_uri = step_csv_uri.replace('file:///output/', '')
+            step_dataframe = pd.read_csv(join(self.output_folder, step_csv_uri))
+            pipeline_step_outputs[step_id] = step_dataframe
+
+        self.pipelines[pipeline_id]['fitted_id'] = fitted_pipeline_id
+        model = {'id': pipeline_id, 'fitted': fitted_pipeline}
         logger.info('Training finished!')
 
-        return model
+        if len(expose_outputs) == 0:
+            return model
 
-    def test(self, model, test_dataset):
+        return model, pipeline_step_outputs
+
+    def test(self, model, test_dataset, expose_outputs=None):
         """Test a model
 
         :param model: Model id
         :param test_dataset: Path to dataset. It supports D3M dataset, and CSV file
-        :returns: Dataframe that contains the predictions
+        :param expose_outputs: The output of the pipeline steps. If None, it doesn't expouse any output of the steps.
+        If str, should be 'all' to shows the output of each step in the pipeline, If list, it should contain the ids of
+        the steps, e.g. 'steps.2.produce'
+        :returns: A dataframe that contains the predictions with/without the pipeline step outputs
         """
         suffix = 'TEST'
 
@@ -179,25 +207,46 @@ class Automl:
             convert_d3m_format(test_dataset, self.output_folder, self.problem_config, suffix)
 
         dataset_in_container = '/input/dataset/TEST/dataset_TEST/datasetDoc.json'
-        fitted_solution_id = list(model.keys())[0]
+        pipeline_id = model['id']
+        fitted_pipeline_id = self.pipelines[pipeline_id]['fitted_id']
         logger.info('Testing model...')
-        predictions_path_in_container = self.ta3.do_test(fitted_solution_id, dataset_in_container)
 
-        if not predictions_path_in_container.startswith('file://'):
-            raise FileNotFoundError('Exposed output "%s" from TA2 cannot be read', predictions_path_in_container)
+        if expose_outputs is None:
+            expose_outputs = []
+        elif isinstance(expose_outputs, str) and expose_outputs == 'all':
+            expose_outputs = ['outputs.0']
+            for index, step in enumerate(self.pipelines[pipeline_id]['json_representation']['steps']):
+                for id_output in step['outputs']:
+                    expose_outputs.append('steps.%d.%s' % (index, id_output['id']))
 
+        # Force to generate the predictions
+        if 'outputs.0' not in expose_outputs:
+            expose_outputs.append('outputs.0')
+
+        pipeline_step_outputs = self.ta3.do_test(fitted_pipeline_id, dataset_in_container, expose_outputs)
+
+        for step_id, step_csv_uri in pipeline_step_outputs.items():
+            if not step_csv_uri.startswith('file://'):
+                logger.warning('Exposed step output "%s" cannot be read' % step_id)
+                continue
+            step_csv_uri = step_csv_uri.replace('file:///output/', '')
+            step_dataframe = pd.read_csv(join(self.output_folder, step_csv_uri))
+            pipeline_step_outputs[step_id] = step_dataframe
+
+        predictions = pipeline_step_outputs['outputs.0']
         logger.info('Testing finished!')
-        predictions_path_in_container = predictions_path_in_container.replace('file:///output/', '')
-        predictions = pd.read_csv(join(self.output_folder, predictions_path_in_container))
 
-        return predictions
+        if len(expose_outputs) == 1:
+            return predictions
+
+        return predictions, pipeline_step_outputs
 
     def score(self, solution_id, test_dataset):
         """Compute a proper score of the model
 
         :param solution_id: Pipeline id
         :param test_dataset: Path to dataset. It supports D3M dataset, and CSV file
-        :returns: Tuple holding metric name and score value
+        :returns: A tuple holding metric name and score value
         """
         suffix = 'SCORE'
 
