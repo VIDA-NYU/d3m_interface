@@ -61,3 +61,8 @@ autoclass_content = 'both'
 add_module_names = False
 
 autodoc_mock_imports = ['d3m', 'scipy', 'sklearn', 'grpcio-tools', 'grpc', 'ta3ta2_api']
+
+html_context = {
+    'display_github': False,
+    'commit': False,
+    }

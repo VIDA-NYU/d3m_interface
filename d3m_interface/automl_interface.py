@@ -45,7 +45,7 @@ class Automl:
         """Create/instantiate an Automl object
 
         :param output_folder: Path to the output directory
-        :param ta2_id: TA2 system name. It makes reference to the ta2 docker image. The provided ta2 systems are the
+        :param ta2_id: TA2 system name. It makes reference to the TA2 docker image. The provided TA2 systems are the
             following: `NYU, CMU, SRI, TAMU`
         """
         if ta2_id not in TA2_DOCKER_IMAGES:
@@ -194,7 +194,7 @@ class Automl:
     def test(self, model, test_dataset, expose_outputs=None):
         """Test a model
 
-        :param model: Model id
+        :param model: Dict that contains the id and fitted model
         :param test_dataset: Path to dataset. It supports D3M dataset, and CSV file
         :param expose_outputs: The output of the pipeline steps. If None, it doesn't expouse any output of the steps.
             If str, should be 'all' to shows the output of each step in the pipeline, If list, it should contain the
@@ -241,25 +241,23 @@ class Automl:
 
         return predictions, pipeline_step_outputs
 
-    def score(self, solution_id, test_dataset):
+    def score(self, pipeline_id, test_dataset):
         """Compute a proper score of the model
 
-        :param solution_id: Pipeline id
+        :param pipeline_id: Pipeline id
         :param test_dataset: Path to dataset. It supports D3M dataset, and CSV file
         :returns: A tuple holding metric name and score value
         """
         suffix = 'SCORE'
 
-        if solution_id not in self.pipelines:
-            raise ValueError('Pipeline id=%s does not exist' % solution_id)
+        if pipeline_id not in self.pipelines:
+            raise ValueError('Pipeline id=%s does not exist' % pipeline_id)
 
         if not is_d3m_format(test_dataset, suffix):
             convert_d3m_format(test_dataset, self.output_folder, self.problem_config, suffix)
 
-        pipeline_id = self.pipelines[solution_id]['json_representation']['id']
-
         with open(join(self.output_folder, '%s.json' % pipeline_id), 'w') as fout:
-            json.dump(self.pipelines[solution_id]['json_representation'], fout)  # Save temporally the json pipeline
+            json.dump(self.pipelines[pipeline_id]['json_representation'], fout)  # Save temporally the json pipeline
 
         dataset_in_container = '/input/dataset/'
         dataset_train_path = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
@@ -289,7 +287,7 @@ class Automl:
         process.wait()
         result_path = join(self.output_folder, 'fit_score_%s.csv' % pipeline_id)
         if not exists(result_path):
-            raise FileNotFoundError('Pipeline id=%s could not be scored' % solution_id)
+            raise FileNotFoundError('Pipeline id=%s could not be scored' % pipeline_id)
 
         df = pd.read_csv(result_path)
         score = round(df['value'][0], 5)
@@ -424,15 +422,15 @@ class Automl:
         return ', '.join(primitives_summary)
 
     @staticmethod
-    def add_new_ta2(name, docker_image):
+    def add_new_ta2(ta2_id, docker_image_url):
         """Add a new TA2 system that is not already defined in the D3M Interface. It can also be a different version of
         a pre-existing TA2 (however it must be added with a different name)
 
-        :param name: A name to identify the new TA2
-        :param docker_image: The docker image url of the new TA2
+        :param ta2_id: A id to identify the new TA2
+        :param docker_image_url: The docker image url of the new TA2
         """
-        TA2_DOCKER_IMAGES[name] = docker_image
-        logger.info('%s TA2 added!', name)
+        TA2_DOCKER_IMAGES[ta2_id] = docker_image_url
+        logger.info('%s TA2 added!', ta2_id)
 
     @staticmethod
     def plot_summary_dataset(dataset_path):
