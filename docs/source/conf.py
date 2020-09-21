@@ -58,4 +58,4 @@ autodoc_member_order = 'bysource'
 
 autoclass_content = 'both'
 
-autodoc_mock_imports = ['d3m', 'scipy', 'sklearn']
+autodoc_mock_imports = ['d3m', 'scipy', 'sklearn', 'grpcio-tools']
