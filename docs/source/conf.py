@@ -58,4 +58,6 @@ autodoc_member_order = 'bysource'
 
 autoclass_content = 'both'
 
+add_module_names = False
+
 autodoc_mock_imports = ['d3m', 'scipy', 'sklearn', 'grpcio-tools', 'grpc', 'ta3ta2_api']
