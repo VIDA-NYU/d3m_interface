@@ -6,9 +6,11 @@
 Welcome to D3M Interface's documentation!
 =========================================
 
-D3M Interface is a python library which enable data scientist to use D3M AutoML Systems. It contains an implementation to integrate D3M TA2 systems with Jupyter Notebooks using the TA3-TA2 API. It provides a familiar interface, that is similar to other AutoML systems likes H2O and TPOT, to make easier for people to adopt D3M tools.
+`d3m-interface` is a Python library which enable data scientist to use D3M AutoML systems.
+It contains an implementation to integrate D3M AutoML systems with Jupyter Notebooks.
+It provides a familiar interface, that is similar to other AutoML systems like H2O and TPOT, to make easier for people to adopt D3M tools.
 
-D3M Interface supports six TA2 systems: NYU, CMU, SRI, TAMU, UC Berkeley and UNCHARTED.
+`d3m-interface` supports six D3M AutoML systems: NYU, CMU, SRI, TAMU, UC Berkeley and UNCHARTED.
  
 
 You can find the source code on GitLab: https://gitlab.com/ViDA-NYU/d3m/d3m_interface

@@ -1,7 +1,7 @@
 D3M Interface Library
 =====================
-Library to use D3M AutoML Systems. This repository contains an implementation to integrate 
- D3M TA2s with Jupyter Notebooks using the TA3-TA2 API. 
+Library to use D3M AutoML systems. This repository contains an implementation to integrate 
+ D3M AutoML systems with Jupyter Notebooks using the TA3-TA2 API. 
 
 [Documentation is available here](https://d3m-interface.readthedocs.io/en/latest/)
 
