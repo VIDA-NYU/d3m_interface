@@ -1,5 +1,6 @@
 import datamart_profiler
 import DataProfileViewer
+import PipelineProfiler
 from d3m.utils import silence
 
 
@@ -8,3 +9,7 @@ def plot_metadata(dataset_path):
         metadata = datamart_profiler.process_dataset(dataset_path, plots=True, include_sample=True)
 
     DataProfileViewer.plot_data_summary(metadata)
+
+
+def plot_comparison_pipelines(pipelines):
+    PipelineProfiler.plot_pipeline_matrix(pipelines)
