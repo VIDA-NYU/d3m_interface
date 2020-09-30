@@ -128,12 +128,15 @@ class Automl:
             jobs.append(job)
             job.start()
 
-        logger.info('Search completed, still scoring some pending pipelines...')
+        if len(jobs) > 0:
+            logger.info('Search completed, still scoring some pending pipelines...')
 
-        for job in jobs:
-            job.join()
+            for job in jobs:
+                job.join()
 
-        logger.info('Scoring completed for all pipelines!')
+            logger.info('Scoring completed for all pipelines!')
+        else:
+            logger.info('Search completed, no pipelines found!')
 
         if len(self.pipelines) > 0:
             leaderboard = []

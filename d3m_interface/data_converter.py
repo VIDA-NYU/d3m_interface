@@ -32,7 +32,7 @@ def convert_d3m_format(dataset_uri, output_folder, problem_config, suffix):
 
 def check_problem_config(problem_config):
     if problem_config['target_column'] is None:
-        raise ValueError('Parameter "target_column" not provided, but it is mandatory')
+        raise ValueError('Parameter "target" not provided, but it is mandatory')
 
     valid_task_keywords = {keyword for keyword in TaskKeywordBase.get_map().keys() if keyword is not None}
     if problem_config['task_keywords'] is None:
