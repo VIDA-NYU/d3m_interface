@@ -118,3 +118,10 @@ def create_d3m_problem(dataset, destination_path, problem_config):
 
     with open(join(destination_path, 'problemDoc.json'), 'w') as fout:
         json.dump(problem_json, fout, indent=4)
+
+
+def copy_folder(source_path, destination_path):
+    if exists(destination_path):
+        shutil.rmtree(destination_path)
+
+    shutil.copytree(source_path, destination_path)

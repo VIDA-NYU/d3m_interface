@@ -9,7 +9,7 @@ import datetime
 from os.path import join, split, exists
 from d3m_interface.basic_ta3 import BasicTA3
 from d3m_interface.visualization import plot_metadata, plot_comparison_pipelines
-from d3m_interface.data_converter import is_d3m_format, convert_d3m_format
+from d3m_interface.data_converter import is_d3m_format, convert_d3m_format, copy_folder
 from d3m.metadata.problem import PerformanceMetric
 from threading import Thread
 
@@ -32,8 +32,7 @@ IGNORE_SUMMARY_PRIMITIVES = {'d3m.primitives.data_transformation.construct_predi
 
 def kernel_interrupt_handler(signal, frame):
     logger.info('KeyboardInterrupt signal received, ending session...')
-    process = subprocess.Popen(['docker', 'stop', 'ta2_container'])
-    process.wait()
+    subprocess.call(['docker', 'stop', 'ta2_container'])
     logger.info('Session ended!')
 
     raise KeyboardInterrupt
@@ -205,11 +204,15 @@ class Automl:
         :returns: A dataframe that contains the predictions with/without the pipeline step outputs
         """
         suffix = 'TEST'
+        dataset_in_container = '/input/dataset/TEST/dataset_TEST/datasetDoc.json'
 
         if not is_d3m_format(test_dataset, suffix):
             convert_d3m_format(test_dataset, self.output_folder, self.problem_config, suffix)
+        elif test_dataset != join(self.dataset, 'TEST'):  # Special case for D3M test dataset with different path
+            destination_path = join(self.output_folder, 'temp', 'dataset_d3mformat', 'TEST')
+            copy_folder(test_dataset, destination_path)
+            dataset_in_container = '/output/temp/dataset_d3mformat/TEST/dataset_TEST/datasetDoc.json'
 
-        dataset_in_container = '/input/dataset/TEST/dataset_TEST/datasetDoc.json'
         pipeline_id = model['id']
         fitted_pipeline_id = self.pipelines[pipeline_id]['fitted_id']
         logger.info('Testing model...')
@@ -361,16 +364,13 @@ class Automl:
         """
         logger.info('Ending session...')
         if self.ta2 is not None:
-            process = subprocess.Popen(['docker', 'stop', 'ta2_container'])
-            process.wait()
+            subprocess.call(['docker', 'stop', 'ta2_container'])
 
         logger.info('Session ended!')
 
     def start_ta2(self):
         logger.info('Initializing %s TA2...', self.ta2_id)
-
-        process = subprocess.Popen(['docker', 'stop', 'ta2_container'])
-        process.wait()
+        subprocess.call(['docker', 'stop', 'ta2_container'])
 
         self.ta2 = subprocess.Popen(
             [
