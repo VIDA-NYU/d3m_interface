@@ -1,3 +1,4 @@
+import os
 import sys
 import time
 import json
@@ -383,6 +384,7 @@ class Automl:
                 '-e', 'D3MSTATICDIR=/output',  # TODO: Temporal assignment for D3MSTATICDIR env variable
                 '-v', '%s:/input/dataset/' % self.dataset,
                 '-v', '%s:/output' % self.output_folder,
+                '--user', '%s:%s' % (os.geteuid(), os.getgid()),
                 TA2_DOCKER_IMAGES[self.ta2_id]
             ]
         )
