@@ -9,7 +9,7 @@ from d3m.container import Dataset
 from d3m.utils import fix_uri
 from d3m.container.utils import save_container
 from d3m.metadata.problem import PerformanceMetricBase, TaskKeywordBase
-from .database import PipelineParameter, PipelineConnection, PipelineModule
+from .pipeline import PipelineParameter, PipelineConnection, PipelineModule
 
 logger = logging.getLogger(__name__)
 DATASET_ID = 'internal_dataset'
@@ -130,30 +130,31 @@ def copy_folder(source_path, destination_path):
     shutil.copytree(source_path, destination_path)
 
 
-def make_pipeline_module(db, pipeline, name, package='d3m', version='2019.10.10'):
-    pipeline_module = PipelineModule(pipeline=pipeline, package=package, version=version, name=name)
-    db.add(pipeline_module)
+def make_pipeline_module(pipeline, name, package='d3m', version='2019.10.10'):
+    pipeline_module = PipelineModule(package=package, version=version, name=name)
+    pipeline.add_module(pipeline_module)
     return pipeline_module
 
 
-def make_data_module(db, pipeline):
-    input_data = make_pipeline_module(db, pipeline, 'dataset', 'data', '0.0')
+def make_data_module(pipeline):
+    input_data = make_pipeline_module(pipeline, 'dataset', 'data', '0.0')
     return input_data
 
 
-def connect(db, pipeline, from_module, to_module, from_output='produce', to_input='inputs'):
-    db.add(PipelineConnection(pipeline=pipeline,
-                              from_module=from_module,
-                              to_module=to_module,
-                              from_output_name=from_output,
-                              to_input_name=to_input))
+def connect(pipeline, from_module, to_module, from_output='produce', to_input='inputs'):
+    connection = PipelineConnection(from_module_id=from_module.id,
+                                    from_output_name=from_output,
+                                    to_module_id=to_module.id,
+                                    to_input_name=to_input)
+    pipeline.add_connection(connection)
+    to_module.add_connection_to(connection)
 
 
-def set_hyperparams(db, pipeline, module, **hyperparams):
-    db.add(PipelineParameter(
-        pipeline=pipeline, module=module,
-        name='hyperparams', value=pickle.dumps(hyperparams),
-    ))
+def set_hyperparams(pipeline, module, **hyperparams):
+    parameters = PipelineParameter(module_id=module.id,
+                                   name='hyperparams',
+                                   value=pickle.dumps(hyperparams))
+    pipeline.add_parameters(parameters)
 
 
 def export_pipeline_code(pipeline_template, ipython_cell=False):
@@ -161,10 +162,9 @@ def export_pipeline_code(pipeline_template, ipython_cell=False):
     """
     code = f"""
 from d3m_interface.data_converter import connect, make_data_module, make_pipeline_module, set_hyperparams  
-from d3m_interface.database import Pipeline, get_session
-db = get_session()
+from d3m_interface.pipeline import Pipeline
 pipeline = Pipeline(origin='export', dataset='dataset')
-input_data = make_data_module(db, pipeline)
+input_data = make_data_module(pipeline)
 """
     prev_step = None
     prev_steps = {}
@@ -172,7 +172,7 @@ input_data = make_data_module(db, pipeline)
     for pipeline_step in pipeline_template['steps']:
         if pipeline_step['type'] == 'PRIMITIVE':
             code += f"""
-step_{count_template_steps} = make_pipeline_module(db, pipeline,'{pipeline_step['primitive']['python_path']}')
+step_{count_template_steps} = make_pipeline_module(pipeline,'{pipeline_step['primitive']['python_path']}')
 """
             if 'outputs' in pipeline_step:
                 for output in pipeline_step['outputs']:
@@ -185,10 +185,10 @@ hyperparams = {"{}"}
 """
                 for hyper, desc in pipeline_step['hyperparams'].items():
                     code += f"""
-hyperparams['{hyper}'] = {"{"}'type':'{desc['type']}' ,'data':{desc['data']}{"}"}
+hyperparams['{hyper}'] = {"{"}'type':'{desc['type']}' ,'data':{"'"+desc['data']+"'" if type(desc['data']) == str else desc['data']}{"}"}
 """
                 code += f"""
-set_hyperparams(db, pipeline,step_{count_template_steps}, **hyperparams)
+set_hyperparams(pipeline,step_{count_template_steps}, **hyperparams)
 """
 
         else:
@@ -198,20 +198,18 @@ set_hyperparams(db, pipeline,step_{count_template_steps}, **hyperparams)
             if 'arguments' in pipeline_step:
                 for argument, desc in pipeline_step['arguments'].items():
                     code += f"""
-connect(db, pipeline,{prev_steps[desc['data']]}, step_{count_template_steps}, from_output='{desc['data'].split('.')[-1]}', to_input='{argument}')
+connect(pipeline,{prev_steps[desc['data']]}, step_{count_template_steps}, from_output='{desc['data'].split('.')[-1]}', to_input='{argument}')
 """
                 code += f"""
-connect(db, pipeline,{prev_step}, step_{count_template_steps}, from_output='index', to_input='index')
+connect(pipeline,{prev_step}, step_{count_template_steps}, from_output='index', to_input='index')
 """
         else:
             code += f"""
-connect(db, pipeline,input_data, step_{count_template_steps}, from_output='dataset')
+connect(pipeline,input_data, step_{count_template_steps}, from_output='dataset')
 """
         prev_step = "step_%d" % (count_template_steps)
         count_template_steps += 1
     code += f"""
-db.add(pipeline)
-db.commit()
 """
     if ipython_cell:
         from IPython.core.getipython import get_ipython
@@ -262,18 +260,14 @@ def _add_step(steps, modules, params, module_to_step, mod):
                     inputs[conn.to_input_name].append('%s.%s' % (step, conn.from_output_name))
             else:
                 inputs[conn.to_input_name] = '%s.%s' % (step, conn.from_output_name)
-
-    klass = get_class(mod.name)
+    #TODO load metadata from primitives
     primitive_desc = {
-        key: value
-        for key, value in klass.metadata.query().items()
-        if key in {'id', 'version', 'python_path', 'name', 'digest'}
+        'id': mod.id,
+        'version': mod.version,
+        'python_path': mod.package,
+        'name': mod.name
     }
-
-    outputs = [{'id': k} for k, v in klass.metadata.query()['primitive_code']['instance_methods'].items()
-               if v['kind'] == 'PRODUCE']
-    if mod.name.endswith('.Fastlvm'):  # FIXME: Temporal solution, this module will be removed when DB is removed
-        outputs = [{'id': 'produce'}]
+    outputs = [{'id': 'produce'}]
 
     # Create step description
     if len(inputs) > 0:
