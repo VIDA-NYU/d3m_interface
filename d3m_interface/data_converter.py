@@ -179,14 +179,14 @@ step_{count_template_steps} = pipeline.make_pipeline_module('{pipeline_step['pri
                         count_template_steps)
 
             if 'hyperparams' in pipeline_step:
-                code += f"""
-pipeline.set_hyperparams(step_{count_template_steps}"""
+                code += f"""pipeline.set_hyperparams(step_{count_template_steps}"""
                 for hyper, desc in pipeline_step['hyperparams'].items():
                     if desc['type'] == 'VALUE':
                         code += f""", {hyper}={"'"+desc['data']+"'" if type(desc['data']) == str else desc['data']}"""
                     else:
                         code += f""", {hyper}= {"{"}'type':'{desc['type']}' ,'data':{"'"+desc['data']+"'" if type(desc['data']) == str else desc['data']}{"}"}"""
-                code += f""")"""
+                code += f""")
+"""
 
         else:
             # TODO In the future we should be able to handle subpipelines
@@ -195,8 +195,7 @@ pipeline.set_hyperparams(step_{count_template_steps}"""
             if 'arguments' in pipeline_step:
                 for argument, desc in pipeline_step['arguments'].items():
                     code += f"""
-pipeline.connect({prev_steps[desc['data']]}, step_{count_template_steps}, from_output='{desc['data'].split('.')[-1]}', to_input='{argument}')
-"""
+pipeline.connect({prev_steps[desc['data']]}, step_{count_template_steps}, from_output='{desc['data'].split('.')[-1]}', to_input='{argument}')"""
                 code += f"""
 pipeline.connect({prev_step}, step_{count_template_steps}, from_output='index', to_input='index')
 """
