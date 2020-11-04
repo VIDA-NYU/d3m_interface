@@ -180,20 +180,13 @@ step_{count_template_steps} = pipeline.make_pipeline_module('{pipeline_step['pri
 
             if 'hyperparams' in pipeline_step:
                 code += f"""
-hyperparams = {"{}"}
-"""
+pipeline.set_hyperparams(step_{count_template_steps}"""
                 for hyper, desc in pipeline_step['hyperparams'].items():
                     if desc['type'] == 'VALUE':
-                        code += f"""
-hyperparams['{hyper}'] = {"'"+desc['data']+"'" if type(desc['data']) == str else desc['data']}
-"""
+                        code += f""", {hyper}={"'"+desc['data']+"'" if type(desc['data']) == str else desc['data']}"""
                     else:
-                        code += f"""
-hyperparams['{hyper}'] = {"{"}'type':'{desc['type']}' ,'data':{"'"+desc['data']+"'" if type(desc['data']) == str else desc['data']}{"}"}
-"""
-                code += f"""
-pipeline.set_hyperparams(step_{count_template_steps}, **hyperparams)
-"""
+                        code += f""", {hyper}= {"{"}'type':'{desc['type']}' ,'data':{"'"+desc['data']+"'" if type(desc['data']) == str else desc['data']}{"}"}"""
+                code += f""")"""
 
         else:
             # TODO In the future we should be able to handle subpipelines
