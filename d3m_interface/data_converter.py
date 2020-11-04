@@ -161,10 +161,9 @@ def export_pipeline_code(pipeline_template, ipython_cell=False):
     """Converts a Pipeline Description to an executable python script.
     """
     code = f"""
-from d3m_interface.data_converter import connect, make_data_module, make_pipeline_module, set_hyperparams  
 from d3m_interface.pipeline import Pipeline
 pipeline = Pipeline(origin='export', dataset='dataset')
-input_data = make_data_module(pipeline)
+input_data = pipeline.make_data_module()
 """
     prev_step = None
     prev_steps = {}
@@ -172,7 +171,7 @@ input_data = make_data_module(pipeline)
     for pipeline_step in pipeline_template['steps']:
         if pipeline_step['type'] == 'PRIMITIVE':
             code += f"""
-step_{count_template_steps} = make_pipeline_module(pipeline,'{pipeline_step['primitive']['python_path']}')
+step_{count_template_steps} = pipeline.make_pipeline_module('{pipeline_step['primitive']['python_path']}')
 """
             if 'outputs' in pipeline_step:
                 for output in pipeline_step['outputs']:
@@ -184,11 +183,16 @@ step_{count_template_steps} = make_pipeline_module(pipeline,'{pipeline_step['pri
 hyperparams = {"{}"}
 """
                 for hyper, desc in pipeline_step['hyperparams'].items():
-                    code += f"""
+                    if desc['type'] == 'VALUE':
+                        code += f"""
+hyperparams['{hyper}'] = {"'"+desc['data']+"'" if type(desc['data']) == str else desc['data']}
+"""
+                    else:
+                        code += f"""
 hyperparams['{hyper}'] = {"{"}'type':'{desc['type']}' ,'data':{"'"+desc['data']+"'" if type(desc['data']) == str else desc['data']}{"}"}
 """
                 code += f"""
-set_hyperparams(pipeline,step_{count_template_steps}, **hyperparams)
+pipeline.set_hyperparams(step_{count_template_steps}, **hyperparams)
 """
 
         else:
@@ -198,14 +202,14 @@ set_hyperparams(pipeline,step_{count_template_steps}, **hyperparams)
             if 'arguments' in pipeline_step:
                 for argument, desc in pipeline_step['arguments'].items():
                     code += f"""
-connect(pipeline,{prev_steps[desc['data']]}, step_{count_template_steps}, from_output='{desc['data'].split('.')[-1]}', to_input='{argument}')
+pipeline.connect({prev_steps[desc['data']]}, step_{count_template_steps}, from_output='{desc['data'].split('.')[-1]}', to_input='{argument}')
 """
                 code += f"""
-connect(pipeline,{prev_step}, step_{count_template_steps}, from_output='index', to_input='index')
+pipeline.connect({prev_step}, step_{count_template_steps}, from_output='index', to_input='index')
 """
         else:
             code += f"""
-connect(pipeline,input_data, step_{count_template_steps}, from_output='dataset')
+pipeline.connect(input_data, step_{count_template_steps}, from_output='dataset')
 """
         prev_step = "step_%d" % (count_template_steps)
         count_template_steps += 1
@@ -290,8 +294,8 @@ def _add_step(steps, modules, params, module_to_step, mod):
         }
 
     # If hyperparameters are set, export them
-    if mod.id in params and 'hyperparams' in params[mod.id]:
-        hyperparams = pickle.loads(params[mod.id]['hyperparams'])
+    if mod.id in params:
+        hyperparams = params[mod.id]
         # We check whether the hyperparameters have a value or the complete description
         hyperparams = {
             k: {'type': v['type'] if isinstance(v,dict) and 'type' in v else 'VALUE',
@@ -312,9 +316,7 @@ def to_d3m_json(pipeline):
     """
     steps = []
     modules = {mod.id: mod for mod in pipeline.modules}
-    params = {}
-    for param in pipeline.parameters:
-        params.setdefault(param.module_id, {})[param.name] = param.value
+    params = pipeline.parameters
     module_to_step = {}
     for _, mod in sorted(modules.items(), key=lambda x: x[0]):
         _add_step(steps, modules, params, module_to_step, mod)

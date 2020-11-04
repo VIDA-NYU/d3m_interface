@@ -16,7 +16,7 @@ class Pipeline():
         self.id = uuid.uuid4()
         self.origin = origin
         self.dataset = dataset
-        self.parameters = []
+        self.parameters = {}
         self.modules = []
         self.connections = []
         self.created_date = datetime.now()
@@ -29,6 +29,32 @@ class Pipeline():
 
     def add_connection(self, connection):
         self.connections.append(connection)
+
+    def make_pipeline_module(self, name, package='d3m', version='2019.10.10'):
+        pipeline_module = PipelineModule(package=package, version=version, name=name)
+        self.add_module(pipeline_module)
+        return pipeline_module
+
+    def make_data_module(self):
+        input_data = self.make_pipeline_module('dataset', 'data', '0.0')
+        return input_data
+
+    def connect(self, from_module, to_module, from_output='produce', to_input='inputs'):
+        connection = PipelineConnection(from_module_id=from_module.id,
+                                        from_output_name=from_output,
+                                        to_module_id=to_module.id,
+                                        to_input_name=to_input)
+        self.add_connection(connection)
+        to_module.add_connection_to(connection)
+
+    def set_hyperparams(self, module, **hyperparams):
+        if module.id not in self.parameters:
+            self.parameters[module.id] = {}
+        for hp in hyperparams:
+            if isinstance(hyperparams[hp],dict):
+                self.parameters[module.id][hp] = hyperparams[hp]
+            else:
+                self.parameters[module.id][hp] = {'type':'VALUE', 'data': hyperparams[hp]}
 
 
     def __eq__(self, other):
