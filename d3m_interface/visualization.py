@@ -1,6 +1,7 @@
 import datamart_profiler
 import DataProfileViewer
 import PipelineProfiler
+import VisualTextAnalyzer
 from d3m.utils import silence
 
 
@@ -13,3 +14,7 @@ def plot_metadata(dataset_path):
 
 def plot_comparison_pipelines(pipelines):
     PipelineProfiler.plot_pipeline_matrix(pipelines)
+
+
+def plot_text_summary(dataset, category_column, text_column):
+    VisualTextAnalyzer.plot_text_summary(dataset, category_column=category_column, text_column=text_column)

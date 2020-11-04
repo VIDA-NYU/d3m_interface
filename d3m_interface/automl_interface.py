@@ -1,4 +1,3 @@
-import os
 import sys
 import time
 import json
@@ -9,8 +8,8 @@ import pandas as pd
 import datetime
 from os.path import join, split, exists
 from d3m_interface.basic_ta3 import BasicTA3
-from d3m_interface.visualization import plot_metadata, plot_comparison_pipelines
-from d3m_interface.data_converter import is_d3m_format, convert_d3m_format, copy_folder
+from d3m_interface.visualization import plot_metadata, plot_comparison_pipelines, plot_text_summary
+from d3m_interface.data_converter import is_d3m_format, convert_d3m_format, convert_d3mtext_dataframe, copy_folder
 from d3m.metadata.problem import PerformanceMetric
 from threading import Thread
 
@@ -384,7 +383,6 @@ class Automl:
                 '-e', 'D3MSTATICDIR=/output',  # TODO: Temporal assignment for D3MSTATICDIR env variable
                 '-v', '%s:/input/dataset/' % self.dataset,
                 '-v', '%s:/output' % self.output_folder,
-                '--user', '%s:%s' % (os.geteuid(), os.getgid()),
                 TA2_DOCKER_IMAGES[self.ta2_id]
             ]
         )
@@ -446,6 +444,16 @@ class Automl:
         """
         pipelineprofiler_inputs = self.create_pipelineprofiler_inputs(test_dataset)
         plot_comparison_pipelines(pipelineprofiler_inputs)
+
+    def plot_text_analysis(self, dataset_path, category_column, text_column):
+        """ Plot PipelineProfiler visualization
+
+        :param dataset_path: Path to dataset.  It supports D3M dataset
+        :param category_column: Name of the column that contains the categories
+        :param text_column: Name of the column that contains the texts
+        """
+        dataframe = convert_d3mtext_dataframe(dataset_path, text_column)
+        plot_text_summary(dataframe, category_column, text_column)
 
     @staticmethod
     def add_new_ta2(ta2_id, docker_image_url):
