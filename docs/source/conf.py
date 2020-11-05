@@ -60,7 +60,8 @@ autoclass_content = 'both'
 
 add_module_names = False
 
-autodoc_mock_imports = ['d3m', 'scipy', 'sklearn', 'grpcio-tools', 'grpc', 'ta3ta2_api', 'visual-text-explorer']
+autodoc_mock_imports = ['d3m', 'scipy', 'sklearn', 'grpcio-tools', 'grpc', 'ta3ta2_api', 'visual-text-explorer',
+                        'VisualTextAnalyzer']
 
 html_context = {
     'display_github': False,
