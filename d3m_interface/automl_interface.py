@@ -446,7 +446,7 @@ class Automl:
         plot_comparison_pipelines(pipelineprofiler_inputs)
 
     def plot_text_analysis(self, dataset_path, category_column, text_column):
-        """ Plot PipelineProfiler visualization
+        """ Plot a visualization for text datasets
 
         :param dataset_path: Path to dataset.  It supports D3M dataset
         :param category_column: Name of the column that contains the categories
