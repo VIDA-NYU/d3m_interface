@@ -2,4 +2,3 @@ sphinx==3.2.1
 pipelineprofiler==0.1.15
 data-profile-viewer==0.2.0
 datamart_profiler==0.6.2
-visual-text-explorer==0.1.1
