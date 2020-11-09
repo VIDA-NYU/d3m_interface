@@ -118,7 +118,6 @@ class Automl:
             search_id = pipeline['search_id']
             pipeline['json_representation'] = pipeline_json
             pipeline['summary'] = summary_pipeline
-            pipeline['found_time'] = end_time.isoformat() + 'Z'
             duration = str(end_time - start_time)
             logger.info('Found pipeline id=%s, time=%s, scoring...' % (pipeline['id'], duration))
 
@@ -323,8 +322,8 @@ class Automl:
                 pipeline_score = [{'metric': {'metric': pipeline['metric']}, 'value': pipeline['score'],
                                    'normalized': pipeline['normalized_score']}]
                 problem = self.dataset
-                start_time = pipeline['json_representation']['created']
-                end_time = pipeline['found_time']
+                start_time = pipeline['start_time']
+                end_time = pipeline['end_time']
 
                 if test_dataset is not None:
                     problem = test_dataset
@@ -403,9 +402,11 @@ class Automl:
     def score_in_search(self, pipeline, dataset_in_container, problem_path, pipelines, method, stratified, shuffle,
                         folds, train_ratio, random_seed):
         try:
+            pipeline['start_time'] = datetime.datetime.utcnow().isoformat() + 'Z'
             score_data = self.ta3.do_score(pipeline['id'], dataset_in_container, problem_path, method, stratified,
                                            shuffle, folds, train_ratio, random_seed)
             logger.info('Scored pipeline id=%s, %s=%s' % (pipeline['id'], score_data['metric'], score_data['score']))
+            pipeline['end_time'] = datetime.datetime.utcnow().isoformat() + 'Z'
             pipeline['score'] = score_data['score']
             pipeline['normalized_score'] = score_data['normalized_score']
             pipeline['metric'] = score_data['metric']
