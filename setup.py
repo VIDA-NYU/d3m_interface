@@ -25,7 +25,7 @@ setuptools.setup(
         'pandas==1.0.3',
         'pipelineprofiler==0.1.15',
         'data-profile-viewer==0.2.0',
-        'visual-text-explorer==0.1.1',
+        'visual-text-explorer==0.1.2',
         'datamart_profiler==0.6.2'
     ],
     python_requires='>=3.6',
