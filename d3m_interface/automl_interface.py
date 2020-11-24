@@ -9,7 +9,7 @@ import datetime
 from os.path import join, split, exists
 from d3m_interface.basic_ta3 import BasicTA3
 from d3m_interface.visualization import plot_metadata, plot_comparison_pipelines, plot_text_summary
-from d3m_interface.data_converter import is_d3m_format, convert_d3m_format, convert_d3mtext_dataframe, copy_folder
+from d3m_interface.data_converter import is_d3m_format, dataset_to_d3m, d3mtext_to_dataframe, copy_folder
 from d3m.metadata.problem import PerformanceMetric
 from threading import Thread
 
@@ -18,7 +18,7 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s', str
 logger = logging.getLogger(__name__)
 pd.set_option('display.max_colwidth', None)
 
-TA2_DOCKER_IMAGES = {'NYU': 'registry.gitlab.com/vida-nyu/d3m/ta2:latest',
+TA2_DOCKER_IMAGES = {'AlphaD3M': 'registry.gitlab.com/vida-nyu/d3m/ta2:latest',
                      'CMU': 'registry.datadrivendiscovery.org/sheath/cmu-ta2:latest',
                      'SRI': 'registry.gitlab.com/daraghhartnett/autoflow:latest',
                      'TAMU': 'dmartinez05/tamuta2:latest'}
@@ -40,12 +40,12 @@ def kernel_interrupt_handler(signal, frame):
 
 class Automl:
 
-    def __init__(self, output_folder, ta2_id='NYU'):
+    def __init__(self, output_folder, ta2_id='AlphaD3M'):
         """Create/instantiate an Automl object
 
         :param output_folder: Path to the output directory
         :param ta2_id: TA2 system name. It makes reference to the TA2 docker image. The provided TA2 systems are the
-            following: `NYU, CMU, SRI, TAMU`
+            following: `AlphaD3M, CMU, SRI, TAMU`
         """
         if ta2_id not in TA2_DOCKER_IMAGES:
             raise ValueError('Unknown "%s" TA2, you should choose among: [%s]' % (ta2_id, ', '.join(TA2_DOCKER_IMAGES)))
@@ -92,7 +92,7 @@ class Automl:
         if not is_d3m_format(dataset, suffix):
             self.problem_config = {'target_column': target, 'metric': metric, 'task_keywords': task_keywords,
                                    'optional': kwargs}
-            dataset = convert_d3m_format(dataset, self.output_folder, self.problem_config, suffix)
+            dataset = dataset_to_d3m(dataset, self.output_folder, self.problem_config, suffix)
 
         self.dataset = split(dataset)[0]
         self.start_ta2()
@@ -206,7 +206,7 @@ class Automl:
         dataset_in_container = '/input/dataset/TEST/dataset_TEST/datasetDoc.json'
 
         if not is_d3m_format(test_dataset, suffix):
-            convert_d3m_format(test_dataset, self.output_folder, self.problem_config, suffix)
+            dataset_to_d3m(test_dataset, self.output_folder, self.problem_config, suffix)
         elif test_dataset != join(self.dataset, 'TEST'):  # Special case for D3M test dataset with different path
             destination_path = join(self.output_folder, 'temp', 'dataset_d3mformat', 'TEST')
             copy_folder(test_dataset, destination_path)
@@ -259,7 +259,7 @@ class Automl:
             raise ValueError('Pipeline id=%s does not exist' % pipeline_id)
 
         if not is_d3m_format(test_dataset, suffix):
-            convert_d3m_format(test_dataset, self.output_folder, self.problem_config, suffix)
+            dataset_to_d3m(test_dataset, self.output_folder, self.problem_config, suffix)
 
         with open(join(self.output_folder, '%s.json' % pipeline_id), 'w') as fout:
             json.dump(self.pipelines[pipeline_id]['json_representation'], fout)  # Save temporally the json pipeline
@@ -372,7 +372,7 @@ class Automl:
         logger.info('Session ended!')
 
     def start_ta2(self):
-        logger.info('Initializing %s TA2...', self.ta2_id)
+        logger.info('Initializing %s AutoML...', self.ta2_id)
         subprocess.call(['docker', 'stop', 'ta2_container'])
 
         self.ta2 = subprocess.Popen(
@@ -394,7 +394,7 @@ class Automl:
             try:
                 self.ta3 = BasicTA3()
                 self.ta3.do_hello()
-                logger.info('%s TA2 initialized!', self.ta2_id)
+                logger.info('%s AutoML initialized!', self.ta2_id)
                 break
             except:
                 if self.ta3.channel is not None:
@@ -451,15 +451,15 @@ class Automl:
         pipelineprofiler_inputs = self.create_pipelineprofiler_inputs(test_dataset, source_name)
         plot_comparison_pipelines(pipelineprofiler_inputs)
 
-    def plot_text_analysis(self, dataset_path, category_column, text_column):
+    def plot_text_analysis(self, dataset_path, label_column, text_column):
         """ Plot a visualization for text datasets
 
         :param dataset_path: Path to dataset.  It supports D3M dataset
-        :param category_column: Name of the column that contains the categories
+        :param label_column: Name of the column that contains the categories
         :param text_column: Name of the column that contains the texts
         """
-        dataframe = convert_d3mtext_dataframe(dataset_path, text_column)
-        plot_text_summary(dataframe, category_column, text_column)
+        dataframe = d3mtext_to_dataframe(dataset_path, text_column)
+        plot_text_summary(dataframe, text_column, label_column)
 
     @staticmethod
     def add_new_ta2(ta2_id, docker_image_url):

@@ -10,7 +10,7 @@ Welcome to D3M Interface's documentation!
 It contains an implementation to integrate D3M AutoML systems with Jupyter Notebooks.
 It provides a familiar interface, that is similar to other AutoML systems like H2O and TPOT, to make easier for people to adopt D3M tools.
 
-`d3m-interface` supports six D3M AutoML systems: NYU, CMU, SRI, TAMU, UC Berkeley and UNCHARTED.
+`d3m-interface` supports six D3M AutoML systems: AlphaD3M (NYU), CMU, SRI, TAMU, UC Berkeley and UNCHARTED.
  
 
 You can find the source code on GitLab: https://gitlab.com/ViDA-NYU/d3m/d3m_interface

@@ -35,7 +35,7 @@ Searching pipelines:
     train_dataset = '/D3M/examples/185_baseball/TRAIN'
     test_dataset = '/D3M/examples/185_baseball/TEST'
     score_dataset = '/D3M/examples/185_baseball/SCORE'
-    automl = Automl(output_path, 'NYU')
+    automl = Automl(output_path, 'AlphaD3M')
     pipelines = automl.search_pipelines(train_dataset, time_bound=5)
 
 Displaying the leaderboard:

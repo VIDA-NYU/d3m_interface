@@ -20,7 +20,7 @@ def is_d3m_format(dataset, suffix):
     return False
 
 
-def convert_d3m_format(dataset_uri, output_folder, problem_config, suffix):
+def dataset_to_d3m(dataset_uri, output_folder, problem_config, suffix):
     logger.info('Reiceving a raw dataset, converting to D3M format')
     problem_config = check_problem_config(problem_config)
     dataset_folder = join(output_folder, 'temp', 'dataset_d3mformat', suffix, 'dataset_%s' % suffix)
@@ -121,7 +121,7 @@ def create_d3m_problem(dataset, destination_path, problem_config):
         json.dump(problem_json, fout, indent=4)
 
 
-def convert_d3mtext_dataframe(folder_path, text_column):
+def d3mtext_to_dataframe(folder_path, text_column):
     suffix = split(folder_path)[1]
     dataframe = pd.read_csv(join(folder_path, 'dataset_%s/tables/learningData.csv' % suffix))
     folder_files = join(folder_path, 'dataset_%s/media/' % suffix)
