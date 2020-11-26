@@ -260,9 +260,19 @@ def _add_step(steps, modules, params, module_to_step, mod):
     primitive_desc = {
         'id': mod.id,
         'version': mod.version,
-        'python_path': mod.package,
+        'python_path': mod.name,
         'name': mod.name
     }
+    with open('primitives_by_name.json') as f:
+        primitives_metadata = json.load(f)
+        for primitve in primitives_metadata:
+            if primitive_desc['python_path'] == primitve['python_path']:
+                primitive_desc['id'] = primitve['id']
+                primitive_desc['version'] = primitve['version']
+                primitive_desc['name'] = primitve['name']
+                primitive_desc['digest'] = primitve['digest']
+                break
+
     outputs = [{'id': 'produce'}]
 
     # Create step description
