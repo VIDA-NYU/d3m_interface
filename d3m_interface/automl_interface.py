@@ -9,9 +9,10 @@ import datetime
 from os.path import join, split, exists
 from d3m_interface.basic_ta3 import BasicTA3
 from d3m_interface.visualization import plot_metadata, plot_comparison_pipelines, plot_text_summary
-from d3m_interface.data_converter import is_d3m_format, dataset_to_d3m, d3mtext_to_dataframe, copy_folder
+from d3m_interface.data_converter import is_d3m_format, dataset_to_d3m, d3mtext_to_dataframe, copy_folder, to_d3m_json
 from d3m.metadata.problem import PerformanceMetric
 from threading import Thread
+from IPython.core.getipython import get_ipython
 
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s', stream=sys.stdout)
@@ -249,20 +250,25 @@ class Automl:
     def score(self, pipeline_id, test_dataset):
         """Compute a proper score of the model
 
-        :param pipeline_id: Pipeline id
+        :param pipeline_id: A id of a pipeline or a Pipeline object
         :param test_dataset: Path to dataset. It supports D3M dataset, and CSV file
         :returns: A tuple holding metric name and score value
         """
         suffix = 'SCORE'
 
-        if pipeline_id not in self.pipelines:
-            raise ValueError('Pipeline id=%s does not exist' % pipeline_id)
-
         if not is_d3m_format(test_dataset, suffix):
             dataset_to_d3m(test_dataset, self.output_folder, self.problem_config, suffix)
 
+        if not isinstance(pipeline_id, str):
+            d3m_json = to_d3m_json(pipeline_id)
+            pipeline_id = d3m_json['id']
+        else:
+            if pipeline_id not in self.pipelines:
+                raise ValueError('Pipeline id=%s does not exist' % pipeline_id)
+            d3m_json = self.pipelines[pipeline_id]['json_representation']
+
         with open(join(self.output_folder, '%s.json' % pipeline_id), 'w') as fout:
-            json.dump(self.pipelines[pipeline_id]['json_representation'], fout)  # Save temporally the json pipeline
+            json.dump(d3m_json, fout)  # Save temporally the json pipeline
 
         dataset_in_container = '/input/dataset/'
         dataset_train_path = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
@@ -361,6 +367,73 @@ class Automl:
         logger.info('Inputs for PipelineProfiler created!')
 
         return profiler_inputs
+
+    def export_pipeline_code(self, pipeline_id, ipython_cell=True):
+        """Converts a Pipeline Description to an executable python script
+
+        :param pipeline_id: Pipeline id
+        :param ipython_cell: Whether or not to show the Python code in a Jupyter Notebook cell
+        """
+        pipeline_template = self.pipelines[pipeline_id]['json_representation']
+        code = "from d3m_interface.pipeline import Pipeline\n\n"
+        code += "pipeline = Pipeline()\n\n"
+        code += "input_data = pipeline.make_pipeline_input()\n"
+
+        prev_step = None
+        prev_steps = {}
+        count_template_steps = 0
+        for pipeline_step in pipeline_template['steps']:
+            if pipeline_step['type'] == 'PRIMITIVE':
+                code += f"""\nstep_{count_template_steps} = pipeline.make_pipeline_step('{pipeline_step['primitive'][
+                    'python_path']}')\n"""
+                if 'outputs' in pipeline_step:
+                    for output in pipeline_step['outputs']:
+                        prev_steps['steps.%d.%s' % (count_template_steps, output['id'])] = "step_%d" % (
+                            count_template_steps)
+
+                if 'hyperparams' in pipeline_step:
+                    code += f"""pipeline.set_hyperparams(step_{count_template_steps}"""
+                    for hyper, desc in pipeline_step['hyperparams'].items():
+                        if desc['type'] == 'VALUE':
+                            code += f""", {hyper}={"'" + desc['data'] + "'" if type(desc['data']) == str else desc[
+                                'data']}"""
+                        else:
+                            code += f""", {hyper}= {"{"}'type':'{desc['type']}' ,'data':{"'" + desc[
+                                'data'] + "'" if type(desc['data']) == str else desc['data']}{"}"}"""
+                    code += f""")\n"""
+
+            else:
+                # TODO In the future we should be able to handle subpipelines
+                break
+            if prev_step:
+                if 'arguments' in pipeline_step:
+                    for argument, desc in pipeline_step['arguments'].items():
+                        from_output = desc['data'].split('.')[-1]
+                        to_input = argument
+                        code += f"""pipeline.connect({prev_steps[desc['data']]}, step_{count_template_steps}"""
+
+                        if from_output != 'produce':
+                            code += f""", from_output='{from_output}'"""
+
+                        if to_input != 'inputs':
+                            code += f""", to_input='{argument}'"""
+                        code += f""")\n"""
+            else:
+                code += f"""pipeline.connect(input_data, step_{count_template_steps}, from_output='dataset')\n"""
+            prev_step = "step_%d" % count_template_steps
+            count_template_steps += 1
+
+        if ipython_cell:
+            shell = get_ipython()
+
+            payload = dict(
+                source='set_next_input',
+                text=code,
+                replace=False,
+            )
+            shell.payload_manager.write_payload(payload, single=False)
+        else:
+            return code
 
     def end_session(self):
         """This safely ends session in D3M interface
