@@ -140,8 +140,8 @@ def create_single_learner(X, y, estimator=None):
         
     pipeline = Pipeline(
                         steps=[
-                                ("tfidf", TfidfVectorizer()),
-                                ("classifier", estimator),
+                                ('tfidf', TfidfVectorizer()),
+                                ('classifier', estimator),
                             ]
                         )
 

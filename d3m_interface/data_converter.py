@@ -129,11 +129,13 @@ def d3mtext_to_dataframe(folder_path, text_column):
     dataframe = pd.read_csv(join(folder_path, 'dataset_%s/tables/learningData.csv' % suffix))
     folder_files = join(folder_path, 'dataset_%s/media/' % suffix)
 
-    for index, row in dataframe.iterrows():
-        file_path = join(folder_files, row[text_column])
+    def read_text(file_name):
+        file_path = join(folder_files, file_name)
         with open(file_path, 'r') as fin:
             text = fin.read().replace('\n', ' ')
-            dataframe.at[index, text_column] = text
+            return text
+
+    dataframe[text_column] = dataframe[text_column].apply(read_text)
 
     return dataframe
 
