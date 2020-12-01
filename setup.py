@@ -15,7 +15,8 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     license='Apache-2.0',
     classifiers=[
-        "Programming Language :: Python :: 3",
+        "Programming Language :: Python ::"
+        " 3",
         'License :: OSI Approved :: Apache Software License',
         "Operating System :: OS Independent",
     ],
@@ -23,7 +24,6 @@ setuptools.setup(
         'ta3ta2-api==2020.6.2',
         'd3m==2020.5.18',
         'pandas==1.0.3',
-        'SQLAlchemy==1.2.16',
         'pipelineprofiler==0.1.15',
         'data-profile-viewer==0.2.0',
         'visual-text-explorer==0.1.2',
