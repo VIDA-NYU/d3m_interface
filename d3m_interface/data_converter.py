@@ -4,7 +4,8 @@ import shutil
 import logging
 import importlib
 import pickle
-from os.path import join, exists
+import pandas as pd
+from os.path import join, exists, split
 from d3m.container import Dataset
 from d3m.utils import fix_uri
 from d3m.container.utils import save_container
@@ -22,7 +23,7 @@ def is_d3m_format(dataset, suffix):
     return False
 
 
-def convert_d3m_format(dataset_uri, output_folder, problem_config, suffix):
+def dataset_to_d3m(dataset_uri, output_folder, problem_config, suffix):
     logger.info('Reiceving a raw dataset, converting to D3M format')
     problem_config = check_problem_config(problem_config)
     dataset_folder = join(output_folder, 'temp', 'dataset_d3mformat', suffix, 'dataset_%s' % suffix)
@@ -121,6 +122,20 @@ def create_d3m_problem(dataset, destination_path, problem_config):
 
     with open(join(destination_path, 'problemDoc.json'), 'w') as fout:
         json.dump(problem_json, fout, indent=4)
+
+
+def d3mtext_to_dataframe(folder_path, text_column):
+    suffix = split(folder_path)[1]
+    dataframe = pd.read_csv(join(folder_path, 'dataset_%s/tables/learningData.csv' % suffix))
+    folder_files = join(folder_path, 'dataset_%s/media/' % suffix)
+
+    for index, row in dataframe.iterrows():
+        file_path = join(folder_files, row[text_column])
+        with open(file_path, 'r') as fin:
+            text = fin.read().replace('\n', ' ')
+            dataframe.at[index, text_column] = text
+
+    return dataframe
 
 
 def copy_folder(source_path, destination_path):
