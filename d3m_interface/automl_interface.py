@@ -373,18 +373,18 @@ class Automl:
         """
         pipeline_template = self.pipelines[id]['json_representation']
         code = f"""
-    from d3m_interface.pipeline import Pipeline
-    pipeline = Pipeline(origin='export', dataset='dataset')
-    input_data = pipeline.make_data_module()
-    """
+from d3m_interface.pipeline import Pipeline
+pipeline = Pipeline()
+input_data = pipeline.make_pipeline_input()
+"""
         prev_step = None
         prev_steps = {}
         count_template_steps = 0
         for pipeline_step in pipeline_template['steps']:
             if pipeline_step['type'] == 'PRIMITIVE':
                 code += f"""
-    step_{count_template_steps} = pipeline.make_pipeline_module('{pipeline_step['primitive']['python_path']}')
-    """
+step_{count_template_steps} = pipeline.make_pipeline_step('{pipeline_step['primitive']['python_path']}')
+"""
                 if 'outputs' in pipeline_step:
                     for output in pipeline_step['outputs']:
                         prev_steps['steps.%d.%s' % (count_template_steps, output['id'])] = "step_%d" % (
@@ -406,19 +406,25 @@ class Automl:
             if prev_step:
                 if 'arguments' in pipeline_step:
                     for argument, desc in pipeline_step['arguments'].items():
+                        from_output = desc['data'].split('.')[-1]
+                        to_input = argument
                         code += f"""
-    pipeline.connect({prev_steps[desc['data']]}, step_{count_template_steps}, from_output='{desc['data'].split('.')[-1]}', to_input='{argument}')"""
-                    code += f"""
-    pipeline.connect({prev_step}, step_{count_template_steps}, from_output='index', to_input='index')
-    """
+pipeline.connect({prev_steps[desc['data']]}, step_{count_template_steps}"""
+
+                        if from_output != 'produce':
+                            code+= f""", from_output='{from_output}'"""
+
+                        if to_input != 'inputs':
+                            code += f""", to_input='{argument}'"""
+                        code += f""")"""
             else:
                 code += f"""
-    pipeline.connect(input_data, step_{count_template_steps}, from_output='dataset')
-    """
+pipeline.connect(input_data, step_{count_template_steps}, from_output='dataset')
+"""
             prev_step = "step_%d" % (count_template_steps)
             count_template_steps += 1
         code += f"""
-    """
+"""
         if ipython_cell:
             from IPython.core.getipython import get_ipython
             shell = get_ipython()

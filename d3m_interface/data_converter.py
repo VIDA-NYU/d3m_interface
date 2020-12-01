@@ -157,68 +157,6 @@ def set_hyperparams(pipeline, module, **hyperparams):
     pipeline.add_parameters(parameters)
 
 
-def export_pipeline_code(pipeline_template, ipython_cell=False):
-    """Converts a Pipeline Description to an executable python script.
-    """
-    code = f"""
-from d3m_interface.pipeline import Pipeline
-pipeline = Pipeline(origin='export', dataset='dataset')
-input_data = pipeline.make_data_module()
-"""
-    prev_step = None
-    prev_steps = {}
-    count_template_steps = 0
-    for pipeline_step in pipeline_template['steps']:
-        if pipeline_step['type'] == 'PRIMITIVE':
-            code += f"""
-step_{count_template_steps} = pipeline.make_pipeline_module('{pipeline_step['primitive']['python_path']}')
-"""
-            if 'outputs' in pipeline_step:
-                for output in pipeline_step['outputs']:
-                    prev_steps['steps.%d.%s' % (count_template_steps, output['id'])] = "step_%d" % (
-                        count_template_steps)
-
-            if 'hyperparams' in pipeline_step:
-                code += f"""pipeline.set_hyperparams(step_{count_template_steps}"""
-                for hyper, desc in pipeline_step['hyperparams'].items():
-                    if desc['type'] == 'VALUE':
-                        code += f""", {hyper}={"'"+desc['data']+"'" if type(desc['data']) == str else desc['data']}"""
-                    else:
-                        code += f""", {hyper}= {"{"}'type':'{desc['type']}' ,'data':{"'"+desc['data']+"'" if type(desc['data']) == str else desc['data']}{"}"}"""
-                code += f""")
-"""
-
-        else:
-            # TODO In the future we should be able to handle subpipelines
-            break
-        if prev_step:
-            if 'arguments' in pipeline_step:
-                for argument, desc in pipeline_step['arguments'].items():
-                    code += f"""
-pipeline.connect({prev_steps[desc['data']]}, step_{count_template_steps}, from_output='{desc['data'].split('.')[-1]}', to_input='{argument}')"""
-                code += f"""
-pipeline.connect({prev_step}, step_{count_template_steps}, from_output='index', to_input='index')
-"""
-        else:
-            code += f"""
-pipeline.connect(input_data, step_{count_template_steps}, from_output='dataset')
-"""
-        prev_step = "step_%d" % (count_template_steps)
-        count_template_steps += 1
-    code += f"""
-"""
-    if ipython_cell:
-        from IPython.core.getipython import get_ipython
-        shell = get_ipython()
-
-        payload = dict(
-            source='set_next_input',
-            text=code,
-            replace=False,
-        )
-        shell.payload_manager.write_payload(payload, single=False)
-    return code
-
 def get_class(name):
     package, classname = name.rsplit('.', 1)
     return getattr(importlib.import_module(package), classname)
@@ -241,9 +179,6 @@ def _add_step(steps, modules, params, module_to_step, mod):
 
     for conn in sorted(mod.connections_to, key=lambda c: c.to_input_name):
         step = _add_step(steps, modules, params, module_to_step, modules[conn.from_module_id])
-
-        # index is a special connection to keep the order of steps in fixed pipeline templates
-        if 'index' in conn.to_input_name: continue
 
         if step.startswith('inputs.'):
             inputs[conn.to_input_name] = step

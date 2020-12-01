@@ -30,13 +30,13 @@ class Pipeline():
     def add_connection(self, connection):
         self.connections.append(connection)
 
-    def make_pipeline_module(self, name, package='d3m', version='2019.10.10'):
+    def make_pipeline_step(self, name, package='d3m', version='2019.10.10'):
         pipeline_module = PipelineModule(package=package, version=version, name=name)
         self.add_module(pipeline_module)
         return pipeline_module
 
-    def make_data_module(self):
-        input_data = self.make_pipeline_module('dataset', 'data', '0.0')
+    def make_pipeline_input(self):
+        input_data = self.make_pipeline_step('dataset', 'data', '0.0')
         return input_data
 
     def connect(self, from_module, to_module, from_output='produce', to_input='inputs'):
