@@ -10,7 +10,7 @@ from d3m.container import Dataset
 from d3m.utils import fix_uri
 from d3m.container.utils import save_container
 from d3m.metadata.problem import PerformanceMetricBase, TaskKeywordBase
-from .pipeline import PipelineParameter, PipelineConnection, PipelineModule
+from d3m_interface.pipeline import PipelineParameter, PipelineConnection, PipelineModule
 
 logger = logging.getLogger(__name__)
 DATASET_ID = 'internal_dataset'
@@ -213,7 +213,7 @@ def _add_step(steps, modules, params, module_to_step, mod):
         'python_path': mod.name,
         'name': mod.name
     }
-    with open('primitives_by_name.json') as f:
+    with open('../resource/primitives_metadata.json') as f:
         primitives_metadata = json.load(f)
         for primitve in primitives_metadata:
             if primitive_desc['python_path'] == primitve['python_path']:

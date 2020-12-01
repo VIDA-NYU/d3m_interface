@@ -1,13 +1,8 @@
-"""The SQLAlchemy models we use to persist data.
-"""
-
 import logging
 import uuid
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
-
-
 
 
 class Pipeline():
@@ -24,7 +19,7 @@ class Pipeline():
     def add_module(self, module):
         self.modules.append(module)
 
-    def add_parameters(self,parameters):
+    def add_parameters(self, parameters):
         self.parameters.append(parameters)
 
     def add_connection(self, connection):
@@ -54,8 +49,7 @@ class Pipeline():
             if isinstance(hyperparams[hp],dict):
                 self.parameters[module.id][hp] = hyperparams[hp]
             else:
-                self.parameters[module.id][hp] = {'type':'VALUE', 'data': hyperparams[hp]}
-
+                self.parameters[module.id][hp] = {'type': 'VALUE', 'data': hyperparams[hp]}
 
     def __eq__(self, other):
         return type(other) is Pipeline and other.id == self.id
@@ -77,6 +71,7 @@ class PipelineModule():
     def add_connection_to(self, connection):
         self.connections_to.append(connection)
 
+
 class PipelineConnection():
     def __init__(self, from_module_id, from_output_name, to_module_id, to_input_name):
         self.from_module_id = from_module_id
@@ -85,11 +80,8 @@ class PipelineConnection():
         self.to_input_name = to_input_name
 
 
-
 class PipelineParameter():
-    def __init__(self,module_id, name, value):
+    def __init__(self, module_id, name, value):
         self.module_id = module_id
         self.name = name
         self.value = value
-
-
