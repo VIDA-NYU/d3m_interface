@@ -5,7 +5,7 @@ import logging
 import importlib
 import pickle
 import pandas as pd
-from os.path import join, exists, split
+from os.path import join, exists, split, dirname
 from d3m.container import Dataset
 from d3m.utils import fix_uri
 from d3m.container.utils import save_container
@@ -215,7 +215,7 @@ def _add_step(steps, modules, params, module_to_step, mod):
         'python_path': mod.name,
         'name': mod.name
     }
-    with open('../resource/primitives_metadata.json') as f:
+    with open(join(dirname(__file__), '../resource/primitives_metadata.json')) as f:
         primitives_metadata = json.load(f)
         for primitve in primitives_metadata:
             if primitive_desc['python_path'] == primitve['python_path']:
@@ -252,8 +252,8 @@ def _add_step(steps, modules, params, module_to_step, mod):
         hyperparams = params[mod.id]
         # We check whether the hyperparameters have a value or the complete description
         hyperparams = {
-            k: {'type': v['type'] if isinstance(v,dict) and 'type' in v else 'VALUE',
-                'data': v['data'] if isinstance(v,dict) and 'data' in v else v}
+            k: {'type': v['type'] if isinstance(v, dict) and 'type' in v else 'VALUE',
+                'data': v['data'] if isinstance(v, dict) and 'data' in v else v}
             for k, v in hyperparams.items()
         }
         step['hyperparams'] = hyperparams
