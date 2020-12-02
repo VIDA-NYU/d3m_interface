@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="d3m_interface",
-    version="0.1.19",
+    version="0.1.22",
     author="Roque Lopez",
     author_email="rlopez@nyu.edu",
     description="Library to use D3M AutoML Systems",
@@ -29,4 +29,6 @@ setuptools.setup(
         'datamart_profiler==0.6.2'
     ],
     python_requires='>=3.6',
+    include_package_data=True,
+    package_data={'': ['resource/*.json']}
 )
