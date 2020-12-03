@@ -215,7 +215,7 @@ def _add_step(steps, modules, params, module_to_step, mod):
         'python_path': mod.name,
         'name': mod.name
     }
-    with open(join(dirname(__file__), '../resource/primitives_metadata.json')) as f:
+    with open(join(dirname(__file__), 'resource/primitives_metadata.json')) as f:
         primitives_metadata = json.load(f)
         for primitve in primitives_metadata:
             if primitive_desc['python_path'] == primitve['python_path']:
