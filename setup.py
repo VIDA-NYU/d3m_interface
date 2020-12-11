@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="d3m_interface",
-    version="0.1.23",
+    version="0.1.24",
     author="Roque Lopez",
     author_email="rlopez@nyu.edu",
     description="Library to use D3M AutoML Systems",
@@ -20,8 +20,8 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     install_requires=[
-        'ta3ta2-api==2020.6.2',
-        'd3m==2020.5.18',
+        'd3m==2020.11.3',
+        'd3m-automl-rpc==1.0.0',
         'pandas==1.0.3',
         'pipelineprofiler==0.1.15',
         'data-profile-viewer==0.2.0',
