@@ -1,13 +1,13 @@
 import grpc
 import logging
-import ta3ta2_api.core_pb2 as pb_core
-import ta3ta2_api.core_pb2_grpc as pb_core_grpc
-import ta3ta2_api.value_pb2 as pb_value
-from d3m.metadata.problem import Problem, PerformanceMetric
-from ta3ta2_api.utils import encode_problem_description, encode_performance_metric, decode_performance_metric, \
-    decode_value, decode_pipeline_description
+import d3m_automl_rpc.core_pb2 as pb_core
+import d3m_automl_rpc.core_pb2_grpc as pb_core_grpc
+import d3m_automl_rpc.value_pb2 as pb_value
 from d3m.utils import fix_uri, silence
 from d3m.metadata import pipeline as pipeline_module
+from d3m.metadata.problem import Problem, PerformanceMetric
+from d3m_automl_rpc.utils import encode_problem_description, encode_performance_metric, decode_performance_metric, \
+    decode_value, decode_pipeline_description
 
 
 logger = logging.getLogger(__name__)
