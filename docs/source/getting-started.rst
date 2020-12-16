@@ -91,10 +91,3 @@ Pipeline Comparison view highlights the differences among selected pipelines. It
     :align: center
 
 There is more information about how to use PipelineProfiler `here <https://towardsdatascience.com/exploring-auto-sklearn-models-with-pipelineprofiler-5b2c54136044>`__.
-
-
-Examples
----------
-
-You can find Jupyter notebook examples about how to use `d3m-interface` in our `repository <https://gitlab.com/ViDA-NYU/d3m/d3m_interface/-/tree/master/examples>`__.
-
