@@ -19,7 +19,7 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s', str
 logger = logging.getLogger(__name__)
 pd.set_option('display.max_colwidth', None)
 
-TA2_DOCKER_IMAGES = {'AlphaD3M': 'registry.gitlab.com/vida-nyu/d3m/ta2:latest',
+TA2_DOCKER_IMAGES = {'AlphaD3M': 'registry.gitlab.com/vida-nyu/d3m/alphad3m:latest',
                      'CMU': 'registry.datadrivendiscovery.org/sheath/cmu-ta2:latest',
                      'SRI': 'registry.gitlab.com/daraghhartnett/autoflow:latest',
                      'TAMU': 'dmartinez05/tamuta2:latest'}
