@@ -22,6 +22,7 @@ You can find the source code on GitLab: https://gitlab.com/ViDA-NYU/d3m/d3m_inte
    installation
    getting-started
    examples
+   single_ta2
    api
 
 
