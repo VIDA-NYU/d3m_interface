@@ -293,13 +293,15 @@ class AutoML:
                 '--test-input', dataset_test_path,
                 '--score-input', dataset_score_path,
                 '--scores', score_pipeline_path
-            ]
+            ],
+            stderr=subprocess.PIPE
         )
-        process.wait()
-        result_path = join(self.output_folder, 'fit_score_%s.csv' % pipeline_id)
-        if not exists(result_path):
-            raise FileNotFoundError('Pipeline id=%s could not be scored' % pipeline_id)
+        _, stderr = process.communicate()
 
+        if process.returncode != 0:
+            raise RuntimeError(stderr.decode())
+
+        result_path = join(self.output_folder, 'fit_score_%s.csv' % pipeline_id)
         df = pd.read_csv(result_path)
         score = round(df['value'][0], 5)
         metric = df['metric'][0].lower()
