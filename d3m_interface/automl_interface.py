@@ -39,7 +39,7 @@ def kernel_interrupt_handler(signal, frame):
     raise KeyboardInterrupt
 
 
-class Automl:
+class AutoML:
 
     def __init__(self, output_folder, ta2_id='AlphaD3M'):
         """Create/instantiate an Automl object
