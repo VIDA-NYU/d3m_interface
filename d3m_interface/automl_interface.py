@@ -42,7 +42,7 @@ def kernel_interrupt_handler(signal, frame):
 class AutoML:
 
     def __init__(self, output_folder, ta2_id='AlphaD3M'):
-        """Create/instantiate an Automl object
+        """Create/instantiate an AutoML object
 
         :param output_folder: Path to the output directory
         :param ta2_id: TA2 system name. It makes reference to the TA2 docker image. The provided TA2 systems are the
@@ -153,7 +153,7 @@ class AutoML:
         """Train a model using an specific ML pipeline
 
         :param pipeline_id: Pipeline id
-        :param expose_outputs: The output of the pipeline steps. If None, it doesn't expouse any output of the steps.
+        :param expose_outputs: The output of the pipeline steps. If None, it doesn't expose any output of the steps.
             If str, should be 'all' to shows the output of each step in the pipeline, If list, it should contain the
             ids of the steps, e.g. 'steps.2.produce'
         :returns: A dictionary that contains the id and fitted model with/without the pipeline step outputs
@@ -198,7 +198,7 @@ class AutoML:
 
         :param model: Dict that contains the id and fitted model
         :param test_dataset: Path to dataset. It supports D3M dataset, and CSV file
-        :param expose_outputs: The output of the pipeline steps. If None, it doesn't expouse any output of the steps.
+        :param expose_outputs: The output of the pipeline steps. If None, it doesn't expose any output of the steps.
             If str, should be 'all' to shows the output of each step in the pipeline, If list, it should contain the
             ids of the steps, e.g. 'steps.2.produce'
         :returns: A dataframe that contains the predictions with/without the pipeline step outputs
