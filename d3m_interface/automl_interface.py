@@ -39,7 +39,7 @@ def kernel_interrupt_handler(signal, frame):
     raise KeyboardInterrupt
 
 
-class Automl:
+class AutoML:
 
     def __init__(self, output_folder, ta2_id='AlphaD3M'):
         """Create/instantiate an Automl object
@@ -488,8 +488,8 @@ class Automl:
             pipeline['normalized_score'] = score_data['normalized_score']
             pipeline['metric'] = score_data['metric']
             pipelines[pipeline['id']] = pipeline
-        except:
-            logger.warning('Pipeline id=%s could not be scored', pipeline['id'])
+        except Exception as e:
+            logger.warning('Pipeline id=%s could not be scored.' % pipeline['id'], exc_info=e)
 
     def get_summary_pipeline(self, pipeline_json):
         primitives_summary = []
