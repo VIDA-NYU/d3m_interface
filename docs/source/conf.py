@@ -34,7 +34,7 @@ master_doc = 'index'
 extensions = ['sphinx.ext.autodoc', 'nbsphinx', 'nbsphinx_link']
 
 # Add any paths that contain templates here, relative to this directory.
-#templates_path = ['_templates']
+templates_path = ['_templates']
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -62,8 +62,3 @@ add_module_names = False
 
 autodoc_mock_imports = ['d3m', 'd3m_automl_rpc', 'scipy', 'sklearn', 'grpcio-tools', 'grpc', 'datamart_profiler',
                         'VisualTextAnalyzer', 'DataProfileViewer', 'PipelineProfiler', 'IPython']
-
-html_context = {
-    'display_github': False,
-    'commit': False,
-    }
