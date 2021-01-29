@@ -175,6 +175,11 @@ class BasicTA3:
 
         return pipeline.to_json_structure()
 
+    def do_save_fitted_solution(self, fitted_solution_id):
+        response = self.core.SaveFittedSolution(pb_core.SaveFittedSolutionRequest(fitted_solution_id=fitted_solution_id))
+
+        return response.fitted_solution_uri
+
     def do_export(self, fitted_solution_id, rank=1):
         self.core.SolutionExport(pb_core.SolutionExportRequest(solution_id=fitted_solution_id, rank=rank))
 

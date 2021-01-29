@@ -3,6 +3,7 @@ import time
 import json
 import logging
 import signal
+import pickle
 import subprocess
 import pandas as pd
 import datetime
@@ -177,7 +178,15 @@ class AutoML:
                     expose_outputs.append('steps.%d.%s' % (index, id_output['id']))
 
         fitted_pipeline_id, pipeline_step_outputs = self.ta3.do_train(pipeline_id, dataset_in_container, expose_outputs)
-        fitted_pipeline = None  # TODO: Call to LoadFittedSolution, but TA2 could not have implemented it yet
+        fitted_pipeline = None
+        # TODO: Implement other method to save the fitted pipeline
+        # try:
+        #     fitted_solution_uri = self.ta3.do_save_fitted_solution(fitted_pipeline_id)
+        #     fitted_solution_uri = fitted_solution_uri.replace('file:///output/', '')
+        #     with open(join(self.output_folder, fitted_solution_uri), 'rb') as fin:
+        #         fitted_pipeline = pickle.load(fin)
+        # except Exception as e:
+        #     logger.warning('Fitted pipeline id=%s could not be loaded' % pipeline_id, exc_info=e)
 
         for step_id, step_csv_uri in pipeline_step_outputs.items():
             if not step_csv_uri.startswith('file://'):
