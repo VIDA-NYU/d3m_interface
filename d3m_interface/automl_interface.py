@@ -6,10 +6,12 @@ import signal
 import subprocess
 import pandas as pd
 import datetime
-from os.path import join, split, exists
+from os.path import join, split
 from d3m_interface.basic_ta3 import BasicTA3
 from d3m_interface.visualization import plot_metadata, plot_comparison_pipelines, plot_text_summary
 from d3m_interface.data_converter import is_d3m_format, dataset_to_d3m, d3mtext_to_dataframe, copy_folder, to_d3m_json
+from d3m_interface.pipeline import Pipeline
+from d3m_interface.confidence_calculator import create_confidence_pipeline
 from d3m.metadata.problem import PerformanceMetric
 from threading import Thread
 from IPython.core.getipython import get_ipython
@@ -20,7 +22,7 @@ logger = logging.getLogger(__name__)
 pd.set_option('display.max_colwidth', None)
 
 TA2_DOCKER_IMAGES = {'AlphaD3M': 'registry.gitlab.com/vida-nyu/d3m/alphad3m:latest',
-                     'CMU': 'registry.datadrivendiscovery.org/sheath/cmu-ta2:latest',
+                     'CMU': 'registry.gitlab.com/sray/cmu-ta2:latest',
                      'SRI': 'registry.gitlab.com/daraghhartnett/autoflow:latest',
                      'TAMU': 'dmartinez05/tamuta2:latest'}
 
@@ -45,11 +47,11 @@ class AutoML:
         """Create/instantiate an AutoML object
 
         :param output_folder: Path to the output directory
-        :param ta2_id: TA2 system name. It makes reference to the TA2 docker image. The provided TA2 systems are the
-            following: `AlphaD3M, CMU, SRI, TAMU`
+        :param ta2_id: AutoML system name. It makes reference to the AutoML docker image. The provided AutoML systems
+            are the following: `AlphaD3M, CMU, SRI, TAMU`
         """
         if ta2_id not in TA2_DOCKER_IMAGES:
-            raise ValueError('Unknown "%s" TA2, you should choose among: [%s]' % (ta2_id, ', '.join(TA2_DOCKER_IMAGES)))
+            raise ValueError('Unknown "%s" AutoML, you should choose among: [%s]' % (ta2_id, ', '.join(TA2_DOCKER_IMAGES)))
 
         self.output_folder = output_folder
         self.ta2_id = ta2_id
@@ -147,6 +149,7 @@ class AutoML:
             self.leaderboard = pd.DataFrame(leaderboard, columns=['ranking', 'id', 'summary', metric])
 
         signal.alarm(0)
+
         return self.pipelines.values()
 
     def train(self, pipeline_id, expose_outputs=None):
@@ -193,7 +196,7 @@ class AutoML:
 
         return model, pipeline_step_outputs
 
-    def test(self, model, test_dataset, expose_outputs=None):
+    def test(self, model, test_dataset, expose_outputs=None, calculate_confidence=False):
         """Test a model
 
         :param model: Dict that contains the id and fitted model
@@ -201,6 +204,7 @@ class AutoML:
         :param expose_outputs: The output of the pipeline steps. If None, it doesn't expose any output of the steps.
             If str, should be 'all' to shows the output of each step in the pipeline, If list, it should contain the
             ids of the steps, e.g. 'steps.2.produce'
+        :param calculate_confidence: Whether or not to return the confidence instead of the predictions
         :returns: A dataframe that contains the predictions with/without the pipeline step outputs
         """
         suffix = 'TEST'
@@ -214,8 +218,51 @@ class AutoML:
             dataset_in_container = '/output/temp/dataset_d3mformat/TEST/dataset_TEST/datasetDoc.json'
 
         pipeline_id = model['id']
-        fitted_pipeline_id = self.pipelines[pipeline_id]['fitted_id']
+
         logger.info('Testing model...')
+
+        if calculate_confidence:
+            # The only way to get the confidence is through the CLI utility, TA3TA2 API doesn't support it
+            original_pipeline = self.pipelines[pipeline_id]['json_representation']
+            confidence_pipeline = create_confidence_pipeline(original_pipeline)
+
+            with open(join(self.output_folder, '%s.json' % pipeline_id), 'w') as fout:
+                json.dump(confidence_pipeline, fout)  # Save temporally the json pipeline
+
+            dataset_in_container = '/input/dataset/'
+            dataset_train_path = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
+            dataset_test_path = join(dataset_in_container, 'TEST/dataset_TEST/datasetDoc.json')
+            problem_path = join(dataset_in_container, 'TRAIN/problem_TRAIN/problemDoc.json')
+            pipeline_path = join('/output/', '%s.json' % pipeline_id)
+            output_csv_path = join('/output/', 'fit_produce_%s.csv' % pipeline_id)
+
+            process = subprocess.Popen(
+                [
+                    'docker', 'exec', 'ta2_container',
+                    'python3', '-m', 'd3m',
+                    'runtime',
+                    '--context', 'TESTING',
+                    '--random-seed', '0',
+                    'fit-produce',
+                    '--pipeline', pipeline_path,
+                    '--problem', problem_path,
+                    '--input', dataset_train_path,
+                    '--test-input', dataset_test_path,
+                    '--output', output_csv_path,
+                ],
+                stderr=subprocess.PIPE
+            )
+            _, stderr = process.communicate()
+
+            if process.returncode != 0:
+                raise RuntimeError(stderr.decode())
+
+            result_path = join(self.output_folder, 'fit_produce_%s.csv' % pipeline_id)
+            predictions = pd.read_csv(result_path)
+
+            return predictions
+
+        fitted_pipeline_id = self.pipelines[pipeline_id]['fitted_id']
 
         if expose_outputs is None:
             expose_outputs = []
@@ -259,16 +306,16 @@ class AutoML:
         if not is_d3m_format(test_dataset, suffix):
             dataset_to_d3m(test_dataset, self.output_folder, self.problem_config, suffix)
 
-        if not isinstance(pipeline_id, str):
-            d3m_json = to_d3m_json(pipeline_id)
-            pipeline_id = d3m_json['id']
-        else:
+        if isinstance(pipeline_id, Pipeline):
+            pipeline_json = to_d3m_json(pipeline_id)
+            pipeline_id = pipeline_json['id']
+        elif isinstance(pipeline_id, str):
             if pipeline_id not in self.pipelines:
                 raise ValueError('Pipeline id=%s does not exist' % pipeline_id)
-            d3m_json = self.pipelines[pipeline_id]['json_representation']
+            pipeline_json = self.pipelines[pipeline_id]['json_representation']
 
         with open(join(self.output_folder, '%s.json' % pipeline_id), 'w') as fout:
-            json.dump(d3m_json, fout)  # Save temporally the json pipeline
+            json.dump(pipeline_json, fout)  # Save temporally the json pipeline
 
         dataset_in_container = '/input/dataset/'
         dataset_train_path = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
@@ -276,7 +323,7 @@ class AutoML:
         dataset_score_path = join(dataset_in_container, 'SCORE/dataset_SCORE/datasetDoc.json')
         problem_path = join(dataset_in_container, 'TRAIN/problem_TRAIN/problemDoc.json')
         pipeline_path = join('/output/', '%s.json' % pipeline_id)
-        score_pipeline_path = join('/output/', 'fit_score_%s.csv' % pipeline_id)
+        output_csv_path = join('/output/', 'fit_score_%s.csv' % pipeline_id)
 
         #  TODO: Use TA2TA3 API to score
         process = subprocess.Popen(
@@ -292,7 +339,7 @@ class AutoML:
                 '--input', dataset_train_path,
                 '--test-input', dataset_test_path,
                 '--score-input', dataset_score_path,
-                '--scores', score_pipeline_path
+                '--scores', output_csv_path
             ],
             stderr=subprocess.PIPE
         )
