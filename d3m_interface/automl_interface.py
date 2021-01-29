@@ -20,7 +20,7 @@ from IPython.core.getipython import get_ipython
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s', stream=sys.stdout)
 logger = logging.getLogger(__name__)
-pd.set_option('display.max_colwidth', None)
+
 
 TA2_DOCKER_IMAGES = {'AlphaD3M': 'registry.gitlab.com/vida-nyu/d3m/alphad3m:latest',
                      'CMU': 'registry.gitlab.com/sray/cmu-ta2:latest',
@@ -560,8 +560,13 @@ class AutoML:
 
         return ', '.join(primitives_summary)
 
+    def plot_leaderboard(self):
+        """Plot pipelines' leaderboard
+        """
+        return self.leaderboard.style.hide_index()
+
     def plot_summary_dataset(self, dataset_path):
-        """ Plot histograms of the dataset
+        """Plot histograms of the dataset
 
         :param dataset_path: Path to dataset.  It supports D3M dataset, and CSV file
         """
@@ -573,7 +578,7 @@ class AutoML:
         plot_metadata(dataset_path)
 
     def plot_comparison_pipelines(self, test_dataset=None, source_name=None):
-        """ Plot PipelineProfiler visualization
+        """Plot PipelineProfiler visualization
 
         :param test_dataset: Path to dataset. If None it will use the search scores, otherwise will score the
             pipelines over the passed dataset
@@ -583,7 +588,7 @@ class AutoML:
         plot_comparison_pipelines(pipelineprofiler_inputs)
 
     def plot_text_analysis(self, dataset_path, label_column, text_column):
-        """ Plot a visualization for text datasets
+        """Plot a visualization for text datasets
 
         :param dataset_path: Path to dataset.  It supports D3M dataset
         :param label_column: Name of the column that contains the categories
