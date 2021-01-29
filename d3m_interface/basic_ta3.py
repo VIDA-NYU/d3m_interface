@@ -21,7 +21,7 @@ class BasicTA3:
     def do_hello(self):
         self.core.Hello(pb_core.HelloRequest())
 
-    def do_listprimitives(self):
+    def do_list_primitives(self):
         self.core.ListPrimitives(pb_core.ListPrimitivesRequest())
 
     def do_search(self, dataset_path, problem_path, time_bound, time_bound_run, pipeline_template=None):
@@ -163,16 +163,6 @@ class BasicTA3:
 
         return pipeline_step_outputs
 
-    def do_export(self, fitted):
-        for i, fitted_solution in enumerate(fitted.values()):
-            try:
-                self.core.SolutionExport(pb_core.SolutionExportRequest(
-                    solution_id=fitted_solution,
-                    rank=(i + 1.0) / (len(fitted) + 1.0),
-                ))
-            except:
-                logger.exception('Exception exporting %r', fitted_solution)
-
     def do_describe(self, solution_id):
         pipeline = None
         pipeline_description = self.core.DescribeSolution(pb_core.DescribeSolutionRequest(solution_id=solution_id)).pipeline
@@ -184,6 +174,14 @@ class BasicTA3:
             raise TypeError('Pipeline got a None value during decoding')
 
         return pipeline.to_json_structure()
+
+    def do_save_fitted_solution(self, fitted_solution_id):
+        response = self.core.SaveFittedSolution(pb_core.SaveFittedSolutionRequest(fitted_solution_id=fitted_solution_id))
+
+        return response.fitted_solution_uri
+
+    def do_export(self, fitted_solution_id, rank=1):
+        self.core.SolutionExport(pb_core.SolutionExportRequest(solution_id=fitted_solution_id, rank=rank))
 
     def do_stop_search(self, search_id):
         self.core.StopSearchSolutions(pb_core.StopSearchSolutionsRequest(search_id=search_id))
