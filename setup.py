@@ -5,7 +5,7 @@ with open('README.md', 'r') as fh:
 
 setuptools.setup(
     name='d3m_interface',
-    version='0.1.27',
+    version='0.2',
     author='Roque Lopez',
     author_email='rlopez@nyu.edu',
     description='Library to use D3M AutoML Systems',
@@ -23,9 +23,9 @@ setuptools.setup(
         'd3m==2020.11.3',
         'd3m-automl-rpc==1.0.0',
         'pandas==1.0.3',
-        'pipelineprofiler==0.1.15',
+        'pipelineprofiler==0.1.16',
         'data-profile-viewer==0.2.0',
-        'visual-text-explorer==0.1.2',
+        'visual-text-explorer==0.1.9',
         'datamart_profiler==0.6.2'
     ],
     python_requires='>=3.6',
