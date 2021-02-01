@@ -92,7 +92,9 @@ class AutoML:
         :returns: List of pipelines
         """
         suffix = 'TRAIN'
+        dataset_in_container = '/input/dataset/'
         signal.signal(signal.SIGINT, kernel_interrupt_handler)
+
         if not is_d3m_format(dataset, suffix):
             self.problem_config = {'target_column': target, 'metric': metric, 'task_keywords': task_keywords,
                                    'optional': kwargs}
@@ -103,11 +105,10 @@ class AutoML:
         search_id = None
         signal.signal(signal.SIGALRM, lambda signum, frame: self.ta3.do_stop_search(search_id))
         signal.alarm(time_bound * 60)
-
-        dataset_in_container = '/input/dataset/TRAIN/dataset_TRAIN/datasetDoc.json'
+        train_dataset_d3m = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
         problem_path = join(dataset, 'problem_TRAIN/problemDoc.json')
         start_time = datetime.datetime.utcnow()
-        pipelines = self.ta3.do_search(dataset_in_container, problem_path, time_bound, time_bound_run)
+        pipelines = self.ta3.do_search(train_dataset_d3m, problem_path, time_bound, time_bound_run)
 
         jobs = []
 
@@ -125,7 +126,7 @@ class AutoML:
             duration = str(end_time - start_time)
             logger.info('Found pipeline id=%s, time=%s, scoring...' % (pipeline['id'], duration))
 
-            job = Thread(target=self.score_in_search, args=(pipeline, dataset_in_container, problem_path, self.pipelines,
+            job = Thread(target=self.score_in_search, args=(pipeline, train_dataset_d3m, problem_path, self.pipelines,
                                                             method, stratified, shuffle, folds, train_ratio, random_seed))
             jobs.append(job)
             job.start()
@@ -162,8 +163,7 @@ class AutoML:
             ids of the steps, e.g. 'steps.2.produce'
         :returns: A dictionary that contains the id and fitted model with/without the pipeline step outputs
         """
-
-        dataset_in_container = '/input/dataset/TRAIN/dataset_TRAIN/datasetDoc.json'
+        dataset_in_container = '/input/dataset/'
 
         if pipeline_id not in self.pipelines:
             raise ValueError('Pipeline id=%s does not exist' % pipeline_id)
@@ -177,7 +177,8 @@ class AutoML:
                 for id_output in step['outputs']:
                     expose_outputs.append('steps.%d.%s' % (index, id_output['id']))
 
-        fitted_pipeline_id, pipeline_step_outputs = self.ta3.do_train(pipeline_id, dataset_in_container, expose_outputs)
+        train_dataset_d3m = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
+        fitted_pipeline_id, pipeline_step_outputs = self.ta3.do_train(pipeline_id, train_dataset_d3m, expose_outputs)
         fitted_pipeline = None
         # TODO: Implement other method to save the fitted pipeline
         # try:
@@ -217,18 +218,18 @@ class AutoML:
         :returns: A dataframe that contains the predictions with/without the pipeline step outputs
         """
         suffix = 'TEST'
-        dataset_in_container = '/input/dataset/TEST/dataset_TEST/datasetDoc.json'
+        dataset_in_container = '/input/dataset/'
 
         if not is_d3m_format(test_dataset, suffix):
             dataset_to_d3m(test_dataset, self.output_folder, self.problem_config, suffix)
         elif test_dataset != join(self.dataset, 'TEST'):  # Special case for D3M test dataset with different path
             destination_path = join(self.output_folder, 'temp', 'dataset_d3mformat', 'TEST')
             copy_folder(test_dataset, destination_path)
-            dataset_in_container = '/output/temp/dataset_d3mformat/TEST/dataset_TEST/datasetDoc.json'
-
-        pipeline_id = model['id']
+            dataset_in_container = '/output/temp/dataset_d3mformat/'
 
         logger.info('Testing model...')
+        pipeline_id = model['id']
+        test_dataset_d3m = join(dataset_in_container, 'TEST/dataset_TEST/datasetDoc.json')
 
         if calculate_confidence:
             # The only way to get the confidence is through the CLI utility, TA3TA2 API doesn't support it
@@ -238,9 +239,7 @@ class AutoML:
             with open(join(self.output_folder, '%s.json' % pipeline_id), 'w') as fout:
                 json.dump(confidence_pipeline, fout)  # Save temporally the json pipeline
 
-            dataset_in_container = '/input/dataset/'
-            dataset_train_path = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
-            dataset_test_path = join(dataset_in_container, 'TEST/dataset_TEST/datasetDoc.json')
+            train_dataset_d3m = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
             problem_path = join(dataset_in_container, 'TRAIN/problem_TRAIN/problemDoc.json')
             pipeline_path = join('/output/', '%s.json' % pipeline_id)
             output_csv_path = join('/output/', 'fit_produce_%s.csv' % pipeline_id)
@@ -255,8 +254,8 @@ class AutoML:
                     'fit-produce',
                     '--pipeline', pipeline_path,
                     '--problem', problem_path,
-                    '--input', dataset_train_path,
-                    '--test-input', dataset_test_path,
+                    '--input', train_dataset_d3m,
+                    '--test-input', test_dataset_d3m,
                     '--output', output_csv_path,
                 ],
                 stderr=subprocess.PIPE
@@ -285,7 +284,7 @@ class AutoML:
         if 'outputs.0' not in expose_outputs:
             expose_outputs.append('outputs.0')
 
-        pipeline_step_outputs = self.ta3.do_test(fitted_pipeline_id, dataset_in_container, expose_outputs)
+        pipeline_step_outputs = self.ta3.do_test(fitted_pipeline_id, test_dataset_d3m, expose_outputs)
 
         for step_id, step_csv_uri in pipeline_step_outputs.items():
             if not step_csv_uri.startswith('file://'):
@@ -311,6 +310,7 @@ class AutoML:
         :returns: A tuple holding metric name and score value
         """
         suffix = 'SCORE'
+        dataset_in_container = '/input/dataset/'
 
         if not is_d3m_format(test_dataset, suffix):
             dataset_to_d3m(test_dataset, self.output_folder, self.problem_config, suffix)
@@ -326,10 +326,9 @@ class AutoML:
         with open(join(self.output_folder, '%s.json' % pipeline_id), 'w') as fout:
             json.dump(pipeline_json, fout)  # Save temporally the json pipeline
 
-        dataset_in_container = '/input/dataset/'
-        dataset_train_path = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
-        dataset_test_path = join(dataset_in_container, 'TEST/dataset_TEST/datasetDoc.json')
-        dataset_score_path = join(dataset_in_container, 'SCORE/dataset_SCORE/datasetDoc.json')
+        train_dataset_d3m = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
+        test_dataset_d3m = join(dataset_in_container, 'TEST/dataset_TEST/datasetDoc.json')
+        score_dataset_d3m = join(dataset_in_container, 'SCORE/dataset_SCORE/datasetDoc.json')
         problem_path = join(dataset_in_container, 'TRAIN/problem_TRAIN/problemDoc.json')
         pipeline_path = join('/output/', '%s.json' % pipeline_id)
         output_csv_path = join('/output/', 'fit_score_%s.csv' % pipeline_id)
@@ -345,9 +344,9 @@ class AutoML:
                 'fit-score',
                 '--pipeline', pipeline_path,
                 '--problem', problem_path,
-                '--input', dataset_train_path,
-                '--test-input', dataset_test_path,
-                '--score-input', dataset_score_path,
+                '--input', train_dataset_d3m,
+                '--test-input', test_dataset_d3m,
+                '--score-input', score_dataset_d3m,
                 '--scores', output_csv_path
             ],
             stderr=subprocess.PIPE
@@ -427,7 +426,7 @@ class AutoML:
         return profiler_inputs
 
     def export_pipeline_code(self, pipeline_id, ipython_cell=True):
-        """Converts a Pipeline Description to an executable python script
+        """Converts a Pipeline Description to an executable Python script
 
         :param pipeline_id: Pipeline id
         :param ipython_cell: Whether or not to show the Python code in a Jupyter Notebook cell
@@ -534,12 +533,12 @@ class AutoML:
 
                 time.sleep(4)
 
-    def score_in_search(self, pipeline, dataset_in_container, problem_path, pipelines, method, stratified, shuffle,
-                        folds, train_ratio, random_seed):
+    def score_in_search(self, pipeline, train_dataset, problem_path, pipelines, method, stratified, shuffle, folds,
+                        train_ratio, random_seed):
         try:
             pipeline['start_time'] = datetime.datetime.utcnow().isoformat() + 'Z'
-            score_data = self.ta3.do_score(pipeline['id'], dataset_in_container, problem_path, method, stratified,
-                                           shuffle, folds, train_ratio, random_seed)
+            score_data = self.ta3.do_score(pipeline['id'], train_dataset, problem_path, method, stratified, shuffle,
+                                           folds, train_ratio, random_seed)
             logger.info('Scored pipeline id=%s, %s=%s' % (pipeline['id'], score_data['metric'], score_data['score']))
             pipeline['end_time'] = datetime.datetime.utcnow().isoformat() + 'Z'
             pipeline['score'] = score_data['score']
@@ -565,17 +564,17 @@ class AutoML:
         """
         return self.leaderboard.style.hide_index()
 
-    def plot_summary_dataset(self, dataset_path):
+    def plot_summary_dataset(self, dataset):
         """Plot histograms of the dataset
 
-        :param dataset_path: Path to dataset.  It supports D3M dataset, and CSV file
+        :param dataset: Path to dataset.  It supports D3M dataset, and CSV file
         """
-        suffix = dataset_path.split('/')[-1]
+        suffix = dataset.split('/')[-1]
 
-        if is_d3m_format(dataset_path, suffix):
-            dataset_path = join(dataset_path, 'dataset_%s/tables/learningData.csv' % suffix)
+        if is_d3m_format(dataset, suffix):
+            dataset = join(dataset, 'dataset_%s/tables/learningData.csv' % suffix)
 
-        plot_metadata(dataset_path)
+        plot_metadata(dataset)
 
     def plot_comparison_pipelines(self, test_dataset=None, source_name=None):
         """Plot PipelineProfiler visualization
@@ -587,14 +586,14 @@ class AutoML:
         pipelineprofiler_inputs = self.create_pipelineprofiler_inputs(test_dataset, source_name)
         plot_comparison_pipelines(pipelineprofiler_inputs)
 
-    def plot_text_analysis(self, dataset_path, label_column, text_column):
+    def plot_text_analysis(self, dataset, label_column, text_column):
         """Plot a visualization for text datasets
 
-        :param dataset_path: Path to dataset.  It supports D3M dataset
+        :param dataset: Path to dataset.  It supports D3M dataset
         :param label_column: Name of the column that contains the categories
         :param text_column: Name of the column that contains the texts
         """
-        dataframe = d3mtext_to_dataframe(dataset_path, text_column)
+        dataframe = d3mtext_to_dataframe(dataset, text_column)
         plot_text_summary(dataframe, text_column, label_column)
 
     @staticmethod
