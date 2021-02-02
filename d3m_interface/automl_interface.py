@@ -267,6 +267,7 @@ class AutoML:
 
             result_path = join(self.output_folder, 'fit_produce_%s.csv' % pipeline_id)
             predictions = pd.read_csv(result_path)
+            logger.info('Testing finished!')
 
             return predictions
 

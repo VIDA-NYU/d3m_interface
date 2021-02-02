@@ -2,13 +2,7 @@ import re
 import copy
 
 
-def is_position_computeunique(step):
-    if step['primitive']['python_path'] == 'd3m.primitives.data_transformation.dataset_to_dataframe.Common':
-        return True
-    return False
-
-
-def is_position_constructconfidence(step):
+def is_constructpredictions(step):
     if step['primitive']['python_path'] == 'd3m.primitives.data_transformation.construct_predictions.Common':
         return True
     return False
@@ -20,31 +14,48 @@ def is_estimator(step):
     return False
 
 
-def update_arguments(step, argument, id_last_input):
-    if argument in step['arguments']:
-        id_current_input = int(re.match('steps.(\d+).produce', step['arguments'][argument]['data']).groups()[0])
-        if id_current_input >= id_last_input:
-            step['arguments'][argument]['data'] = 'steps.%d.produce' % (id_current_input + 1)
-
-    return step
-
-
 def create_confidence_pipeline(pipeline):
     pipeline = copy.deepcopy(pipeline)
     steps = pipeline['steps']
     new_steps = []
-    step_index = 0
-    id_last_input = None
-    estimator_index = None
-    
-    for step in steps:
-        if is_position_computeunique(step):
-            # Add compute_unique_values primitive after dataset_to_dataframe primitive
-            new_steps.append(step)
-            id_last_input = int(re.match('steps.(\d+).produce', step['arguments']['inputs']['data']).groups()[0])
-            step_index += 1 
+    estimator = None
 
-            step = {
+    for index, step in enumerate(steps):
+        if is_estimator(step):
+            estimator = step
+            estimator['index'] = index
+        elif is_constructpredictions(step):
+            # Add 3 necessary primitives to calculate confidence
+            input_id = int(re.match('steps.(\d+).produce', step['arguments']['inputs']['data']).groups()[0])
+
+            step_horizontal_concat = {
+                "type": "PRIMITIVE",
+                "primitive": {
+                    "id": "aff6a77a-faa0-41c5-9595-de2e7f7c4760",
+                    "name": "Concatenate two dataframes",
+                    "version": "0.2.0",
+                    "python_path": "d3m.primitives.data_transformation.horizontal_concat.DataFrameCommon",
+                    "digest": "f1e8fe6ba0456e562d9613bd5f4221e221e9cadd23c684564137b2aa14495ada"
+                },
+                "arguments": {
+                    "left": {
+                        "data": estimator['arguments']['inputs']['data'],
+                        "type": "CONTAINER"
+                    },
+                    "right": {
+                        "data": estimator['arguments']['outputs']['data'],
+                        "type": "CONTAINER"
+                    }
+                },
+                "outputs": [
+                    {
+                        "id": "produce"
+                    }
+                ]
+            }
+            new_steps.append(step_horizontal_concat)
+
+            step_unique_values = {
                 "type": "PRIMITIVE",
                 "primitive": {
                     "id": "dd580c45-9fbe-493d-ac79-6e9f706a3619",
@@ -56,7 +67,7 @@ def create_confidence_pipeline(pipeline):
                 "arguments": {
                     "inputs": {
                         "type": "CONTAINER",
-                        "data": step['arguments']['inputs']['data']
+                        "data": 'steps.%d.produce' % (input_id + 1)
                     }
                 },
                 "outputs": [
@@ -65,9 +76,8 @@ def create_confidence_pipeline(pipeline):
                     }
                 ]
             }
-            
-        elif is_position_constructconfidence(step):
-            # Replace primitive construct_confidence instead of construct_predictions
+            new_steps.append(step_unique_values)
+
             step = {
                 "type": "PRIMITIVE",
                 "primitive": {
@@ -80,7 +90,7 @@ def create_confidence_pipeline(pipeline):
                 "arguments": {
                     "inputs": {
                         "type": "CONTAINER",
-                        "data": 'steps.%d.produce' % (id_last_input + 1)
+                        "data": 'steps.%d.produce' % (input_id + 2)
                     },
                     "reference": {
                         "type": "CONTAINER",
@@ -95,24 +105,15 @@ def create_confidence_pipeline(pipeline):
                 "hyperparams": {
                     "primitive_learner": {
                         "type": "PRIMITIVE",
-                        "data": estimator_index
+                        "data": estimator['index']
                     }
                 }
             }
 
-        elif is_estimator(step):
-            estimator_index = step_index
-
-        if id_last_input is not None:
-            step = update_arguments(step, 'inputs', id_last_input)
-            step = update_arguments(step, 'outputs', id_last_input)
-            step = update_arguments(step, 'reference', id_last_input)
-
         new_steps.append(step)
-        step_index += 1
 
     pipeline['steps'] = new_steps
-    id_output = int(re.match('steps.(\d+).produce', pipeline['outputs'][0]['data']).groups()[0])
-    pipeline['outputs'][0]['data'] = 'steps.%d.produce' % (id_output + 1)
+    output_id = int(re.match('steps.(\d+).produce', pipeline['outputs'][0]['data']).groups()[0])
+    pipeline['outputs'][0]['data'] = 'steps.%d.produce' % (output_id + 2)
 
     return pipeline
