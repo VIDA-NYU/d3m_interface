@@ -314,7 +314,9 @@ class AutoML:
         dataset_in_container = '/input/dataset/'
 
         if not is_d3m_format(test_dataset, suffix):
+            # D3M format needs TEST and SCORE directories
             dataset_to_d3m(test_dataset, self.output_folder, self.problem_config, suffix)
+            dataset_to_d3m(test_dataset, self.output_folder, self.problem_config, 'TEST')
 
         if isinstance(pipeline_id, Pipeline):
             pipeline_json = to_d3m_json(pipeline_id)
@@ -587,15 +589,23 @@ class AutoML:
         pipelineprofiler_inputs = self.create_pipelineprofiler_inputs(test_dataset, source_name)
         plot_comparison_pipelines(pipelineprofiler_inputs)
 
-    def plot_text_analysis(self, dataset, label_column, text_column):
+    def plot_text_analysis(self, dataset, text_column, label_column, positive_label=1, negative_label=0):
         """Plot a visualization for text datasets
 
-        :param dataset: Path to dataset.  It supports D3M dataset
-        :param label_column: Name of the column that contains the categories
+        :param dataset: Path to dataset.  It supports D3M dataset, and CSV file
         :param text_column: Name of the column that contains the texts
+        :param label_column: Name of the column that contains the classes
+        :param positive_label: Label for the positive class
+        :param negative_label: Label for the negative class
         """
-        dataframe = d3mtext_to_dataframe(dataset, text_column)
-        plot_text_summary(dataframe, text_column, label_column)
+        suffix = dataset.split('/')[-1]
+
+        if is_d3m_format(dataset, suffix):
+            dataframe = d3mtext_to_dataframe(dataset, text_column)
+        else:
+            dataframe = pd.read_csv(dataset, index_col=False)
+
+        plot_text_summary(dataframe, text_column, label_column, positive_label, negative_label)
 
     @staticmethod
     def add_new_ta2(ta2_id, docker_image_url):

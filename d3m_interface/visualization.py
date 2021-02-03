@@ -16,5 +16,6 @@ def plot_comparison_pipelines(pipelines):
     PipelineProfiler.plot_pipeline_matrix(pipelines)
 
 
-def plot_text_summary(dataset, text_column, label_column):
-    VisualTextAnalyzer.plot_text_summary(dataset, text_column=text_column, category_column=label_column)
+def plot_text_summary(dataset, text_column, label_column, positive_label, negative_label):
+    VisualTextAnalyzer.plot_text_summary(dataset, text_column=text_column, category_column=label_column,
+                                         positive_label=positive_label, negative_label=negative_label)

@@ -24,7 +24,7 @@ def is_d3m_format(dataset, suffix):
 
 
 def dataset_to_d3m(dataset_uri, output_folder, problem_config, suffix):
-    logger.info('Reiceving a raw dataset, converting to D3M format')
+    #logger.info('Reiceving a raw dataset, converting to D3M format')
     problem_config = check_problem_config(problem_config)
     dataset_folder = join(output_folder, 'temp', 'dataset_d3mformat', suffix, 'dataset_%s' % suffix)
     problem_folder = join(output_folder, 'temp', 'dataset_d3mformat', suffix, 'problem_%s' % suffix)
