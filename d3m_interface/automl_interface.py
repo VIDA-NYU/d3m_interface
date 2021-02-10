@@ -608,6 +608,15 @@ class AutoML:
         plot_text_summary(dataframe, text_column, label_column, positive_label, negative_label)
 
     def plot_text_explanation(self, model_id, instance_text, text_column, label_column, num_features=5, top_labels=1):
+        """Plot a LIME visualization for model explanation
+
+        :param model_id: Model id
+        :param instance_text: Text to be explained
+        :param text_column: Name of the column that contains the texts
+        :param label_column: Name of the column that contains the classes
+        :param num_features: Maximum number of features present in the explanation
+        :param top_labels: Number of labels with highest prediction probabilities to use in the explanations
+        """
         train_path = join(self.dataset, 'TRAIN')
         artificial_test_path = join(self.output_folder, 'temp', 'dataset_d3mformat', 'TEST')
         plot_text_explanation(self, train_path, artificial_test_path, model_id, instance_text, text_column,
