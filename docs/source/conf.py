@@ -60,5 +60,5 @@ autoclass_content = 'both'
 
 add_module_names = False
 
-autodoc_mock_imports = ['d3m', 'd3m_automl_rpc', 'scipy', 'sklearn', 'grpcio-tools', 'grpc', 'datamart_profiler',
+autodoc_mock_imports = ['d3m', 'd3m_automl_rpc', 'scipy', 'lime', 'sklearn', 'grpcio-tools', 'grpc', 'datamart_profiler',
                         'VisualTextAnalyzer', 'DataProfileViewer', 'PipelineProfiler', 'IPython']
