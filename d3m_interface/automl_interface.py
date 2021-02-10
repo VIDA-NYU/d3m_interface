@@ -1,15 +1,14 @@
 import sys
 import time
 import json
-import logging
 import signal
-import pickle
+import logging
+import datetime
 import subprocess
 import pandas as pd
-import datetime
 from os.path import join, split
 from d3m_interface.basic_ta3 import BasicTA3
-from d3m_interface.visualization import plot_metadata, plot_comparison_pipelines, plot_text_summary
+from d3m_interface.visualization import plot_metadata, plot_comparison_pipelines, plot_text_summary, plot_text_explanation
 from d3m_interface.data_converter import is_d3m_format, dataset_to_d3m, d3mtext_to_dataframe, copy_folder, to_d3m_json
 from d3m_interface.pipeline import Pipeline
 from d3m_interface.confidence_calculator import create_confidence_pipeline
@@ -219,12 +218,15 @@ class AutoML:
         """
         suffix = 'TEST'
         dataset_in_container = '/input/dataset/'
+        train_dataset_d3m = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
+        problem_path = join(dataset_in_container, 'TRAIN/problem_TRAIN/problemDoc.json')
 
         if not is_d3m_format(test_dataset, suffix):
             dataset_to_d3m(test_dataset, self.output_folder, self.problem_config, suffix)
         elif test_dataset != join(self.dataset, 'TEST'):  # Special case for D3M test dataset with different path
             destination_path = join(self.output_folder, 'temp', 'dataset_d3mformat', 'TEST')
-            copy_folder(test_dataset, destination_path)
+            if test_dataset != destination_path:
+                copy_folder(test_dataset, destination_path)
             dataset_in_container = '/output/temp/dataset_d3mformat/'
 
         logger.info('Testing model...')
@@ -239,8 +241,6 @@ class AutoML:
             with open(join(self.output_folder, '%s.json' % pipeline_id), 'w') as fout:
                 json.dump(confidence_pipeline, fout)  # Save temporally the json pipeline
 
-            train_dataset_d3m = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
-            problem_path = join(dataset_in_container, 'TRAIN/problem_TRAIN/problemDoc.json')
             pipeline_path = join('/output/', '%s.json' % pipeline_id)
             output_csv_path = join('/output/', 'fit_produce_%s.csv' % pipeline_id)
 
@@ -606,6 +606,12 @@ class AutoML:
             dataframe = pd.read_csv(dataset, index_col=False)
 
         plot_text_summary(dataframe, text_column, label_column, positive_label, negative_label)
+
+    def plot_text_explanation(self, model_id, instance_text, text_column, label_column, num_features=5, top_labels=1):
+        train_path = join(self.dataset, 'TRAIN')
+        artificial_test_path = join(self.output_folder, 'temp', 'dataset_d3mformat', 'TEST')
+        plot_text_explanation(self, train_path, artificial_test_path, model_id, instance_text, text_column,
+                              label_column, num_features, top_labels)
 
     @staticmethod
     def add_new_ta2(ta2_id, docker_image_url):

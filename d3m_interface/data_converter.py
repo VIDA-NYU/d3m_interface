@@ -4,6 +4,7 @@ import shutil
 import logging
 import importlib
 import pickle
+import numpy as np
 import pandas as pd
 from os.path import join, exists, split, dirname
 from d3m.container import Dataset
@@ -24,7 +25,6 @@ def is_d3m_format(dataset, suffix):
 
 
 def dataset_to_d3m(dataset_uri, output_folder, problem_config, suffix):
-    #logger.info('Reiceving a raw dataset, converting to D3M format')
     problem_config = check_problem_config(problem_config)
     dataset_folder = join(output_folder, 'temp', 'dataset_d3mformat', suffix, 'dataset_%s' % suffix)
     problem_folder = join(output_folder, 'temp', 'dataset_d3mformat', suffix, 'problem_%s' % suffix)
@@ -122,6 +122,44 @@ def create_d3m_problem(dataset, destination_path, problem_config):
 
     with open(join(destination_path, 'problemDoc.json'), 'w') as fout:
         json.dump(problem_json, fout, indent=4)
+
+
+def create_artificial_d3mtest(train_path, artificial_test_path, new_instances, target_column, text_column):
+    # This is useful for cases where new instances are generated artificially
+    if exists(artificial_test_path):
+        shutil.rmtree(artificial_test_path)
+
+    dataset_folder = join(artificial_test_path, 'dataset_TEST')
+    problem_folder = join(artificial_test_path, 'problem_TEST')
+    tables_folder = join(dataset_folder, 'tables')
+    media_folder = join(dataset_folder, 'media')
+    os.makedirs(dataset_folder)
+    os.makedirs(problem_folder)
+    os.makedirs(tables_folder)
+    shutil.copy(join(train_path, 'dataset_TRAIN', 'datasetDoc.json'), join(dataset_folder, 'datasetDoc.json'))
+    shutil.copy(join(train_path, 'problem_TRAIN', 'problemDoc.json'), join(problem_folder, 'problemDoc.json'))
+
+    need_media_folder = False
+    if exists(join(train_path, 'dataset_TRAIN', 'media')):
+        need_media_folder = True
+        os.makedirs(media_folder)
+
+    data = {'d3mIndex': [], text_column: [], target_column: []}
+    for i in range(len(new_instances)):
+        text_value = new_instances[i]
+        if need_media_folder:
+            file_path = join(media_folder, str(i) + '.txt')
+            with open(file_path, 'w') as fin:
+                fin.write(text_value)
+            text_value = file_path
+
+        data['d3mIndex'].append(i)
+        data[text_column].append(text_value)
+        data[target_column].append(np.nan)
+
+    train_columns = pd.read_csv(join(train_path, 'dataset_TRAIN', 'tables', 'learningData.csv')).columns
+    data = pd.DataFrame(data, columns=train_columns)  # To have the same order of columns in train and test sets
+    data.to_csv(join(tables_folder, 'learningData.csv'), index=False)
 
 
 def d3mtext_to_dataframe(folder_path, text_column):
