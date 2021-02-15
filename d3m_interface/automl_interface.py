@@ -579,15 +579,19 @@ class AutoML:
 
         plot_metadata(dataset)
 
-    def plot_comparison_pipelines(self, test_dataset=None, source_name=None):
+    def plot_comparison_pipelines(self, test_dataset=None, source_name=None, precomputed_pipelines=None):
         """Plot PipelineProfiler visualization
 
         :param test_dataset: Path to dataset. If None it will use the search scores, otherwise will score the
             pipelines over the passed dataset
         :param source_name: Name of the pipeline source. If None it will use the TA2 id
+        :param precomputed_pipelines: If not None, it loads pipelines previously computed
         """
-        pipelineprofiler_inputs = self.create_pipelineprofiler_inputs(test_dataset, source_name)
-        plot_comparison_pipelines(pipelineprofiler_inputs)
+        if precomputed_pipelines is None:
+            pipelineprofiler_inputs = self.create_pipelineprofiler_inputs(test_dataset, source_name)
+            plot_comparison_pipelines(pipelineprofiler_inputs)
+        else:
+            plot_comparison_pipelines(precomputed_pipelines)
 
     def plot_text_analysis(self, dataset, text_column, label_column, positive_label=1, negative_label=0):
         """Plot a visualization for text datasets
