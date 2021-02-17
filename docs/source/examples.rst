@@ -8,3 +8,4 @@ You can find different Jupyter notebook examples about how to use `d3m-interface
 - `Analyzing text datasets <https://gitlab.com/ViDA-NYU/d3m/d3m_interface/-/blob/master/examples/text_dataset/jido_demo.ipynb>`__
 - `Running multiple D3M AutoMLs <https://gitlab.com/ViDA-NYU/d3m/d3m_interface/-/blob/master/examples/multiple_ta2s.ipynb>`__
 - `Integration with Auctus Datamart <https://gitlab.com/ViDA-NYU/d3m/d3m_interface/-/blob/master/examples/datamart_integration.ipynb>`__
+- `Explaining text models <https://gitlab.com/ViDA-NYU/d3m/d3m_interface/-/blob/master/examples/text_dataset/text_model_explanation.ipynb>`__
