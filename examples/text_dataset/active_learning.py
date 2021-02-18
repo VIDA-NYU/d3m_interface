@@ -8,7 +8,7 @@ from sklearn.metrics import f1_score
 from IPython import display
 from matplotlib import pyplot as plt
 from modAL.models import ActiveLearner, Committee
-
+# Need to install: modAL==0.3.6
 RANDOM_STATE_SEED = 0
 np.random.seed(RANDOM_STATE_SEED)
 

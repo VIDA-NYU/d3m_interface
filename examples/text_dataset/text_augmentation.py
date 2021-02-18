@@ -5,7 +5,7 @@ from collections import OrderedDict
 from nltk.corpus import wordnet as wn
 from snorkel.preprocess.nlp import SpacyPreprocessor
 from snorkel.augmentation import MeanFieldPolicy, RandomPolicy, ApplyAllPolicy, PandasTFApplier, transformation_function
-
+# Need to install: snorkel==0.9.6
 
 RANDOM_STATE_SEED = 0
 np.random.seed(RANDOM_STATE_SEED)
