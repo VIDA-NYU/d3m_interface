@@ -1,3 +1,5 @@
+[![PyPI version](https://badge.fury.io/py/d3m-interface.svg)](https://badge.fury.io/py/d3m-interface)
+
 D3M Interface Library
 =====================
 Library to use D3M AutoML systems. This repository contains an implementation to integrate 
