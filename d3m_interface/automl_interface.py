@@ -572,7 +572,7 @@ class AutoML:
 
         :param dataset: Path to dataset.  It supports D3M dataset, and CSV file
         """
-        suffix = dataset.split('/')[-1]
+        suffix = split(dataset)[-1]
 
         if is_d3m_format(dataset, suffix):
             dataset = join(dataset, 'dataset_%s/tables/learningData.csv' % suffix)
@@ -602,7 +602,7 @@ class AutoML:
         :param positive_label: Label for the positive class
         :param negative_label: Label for the negative class
         """
-        suffix = dataset.split('/')[-1]
+        suffix = split(dataset)[-1]
 
         if is_d3m_format(dataset, suffix):
             dataframe = d3mtext_to_dataframe(dataset, text_column)

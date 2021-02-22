@@ -163,7 +163,7 @@ def create_artificial_d3mtest(train_path, artificial_test_path, new_instances, t
 
 
 def d3mtext_to_dataframe(folder_path, text_column):
-    suffix = split(folder_path)[1]
+    suffix = split(folder_path)[-1]
     dataframe = pd.read_csv(join(folder_path, 'dataset_%s/tables/learningData.csv' % suffix))
     folder_files = join(folder_path, 'dataset_%s/media/' % suffix)
 
