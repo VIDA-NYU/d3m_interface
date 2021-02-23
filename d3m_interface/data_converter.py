@@ -18,7 +18,7 @@ DATASET_ID = 'internal_dataset'
 
 
 def is_d3m_format(dataset, suffix):
-    if isinstance(dataset, str) and exists(join(dataset, 'dataset_%s/datasetDoc.json' % suffix)):
+    if isinstance(dataset, str) and exists(join(dataset, 'dataset_%s' % suffix, 'datasetDoc.json')):
         return True
 
     return False
@@ -164,8 +164,8 @@ def create_artificial_d3mtest(train_path, artificial_test_path, new_instances, t
 
 def d3mtext_to_dataframe(folder_path, text_column):
     suffix = split(folder_path)[-1]
-    dataframe = pd.read_csv(join(folder_path, 'dataset_%s/tables/learningData.csv' % suffix))
-    folder_files = join(folder_path, 'dataset_%s/media/' % suffix)
+    dataframe = pd.read_csv(join(folder_path, 'dataset_%s' % suffix, 'tables', 'learningData.csv'))
+    folder_files = join(folder_path, 'dataset_%s' % suffix, 'media')
 
     def read_text(file_name):
         file_path = join(folder_files, file_name)
@@ -253,7 +253,7 @@ def _add_step(steps, modules, params, module_to_step, mod):
         'python_path': mod.name,
         'name': mod.name
     }
-    with open(join(dirname(__file__), 'resource/primitives_metadata.json')) as f:
+    with open(join(dirname(__file__), 'resource', 'primitives_metadata.json')) as f:
         primitives_metadata = json.load(f)
         for primitve in primitives_metadata:
             if primitive_desc['python_path'] == primitve['python_path']:
