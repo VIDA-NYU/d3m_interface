@@ -93,13 +93,16 @@ class AutoML:
         self.dataset = split(dataset)[0]
         self.start_ta2()
         search_id = None
-        signal.signal(signal.SIGINT, lambda signum, frame: self.ta3.do_stop_search(search_id))
         signal.signal(signal.SIGALRM, lambda signum, frame: self.ta3.do_stop_search(search_id))
         signal.alarm(time_bound * 60)
         train_dataset_d3m = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
         problem_path = join(dataset, 'problem_TRAIN/problemDoc.json')
         start_time = datetime.datetime.utcnow()
-        pipelines = self.ta3.do_search(train_dataset_d3m, problem_path, time_bound, time_bound_run)
+        try:
+            pipelines = self.ta3.do_search(train_dataset_d3m, problem_path, time_bound, time_bound_run)
+        except KeyboardInterrupt:
+            self.ta3.do_stop_search(search_id)
+            raise
 
         jobs = []
 
