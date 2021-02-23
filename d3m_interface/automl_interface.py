@@ -7,6 +7,7 @@ import datetime
 import subprocess
 import pandas as pd
 from os.path import join, split
+import platform
 from d3m_interface.basic_ta3 import BasicTA3
 from d3m_interface.visualization import plot_metadata, plot_comparison_pipelines, plot_text_summary, plot_text_explanation
 from d3m_interface.data_converter import is_d3m_format, dataset_to_d3m, d3mtext_to_dataframe, copy_folder, to_d3m_json
@@ -31,6 +32,12 @@ IGNORE_SUMMARY_PRIMITIVES = {'d3m.primitives.data_transformation.construct_predi
                              'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
                              'd3m.primitives.data_transformation.denormalize.Common',
                              'd3m.primitives.data_transformation.column_parser.Common'}
+
+
+def fix_path_for_docker(path):
+    if platform.system() == 'Windows':
+        path = path.replace('\\', '/')
+    return path
 
 
 class AutoML:
@@ -244,11 +251,11 @@ class AutoML:
                     '--context', 'TESTING',
                     '--random-seed', '0',
                     'fit-produce',
-                    '--pipeline', pipeline_path,
-                    '--problem', problem_path,
-                    '--input', train_dataset_d3m,
-                    '--test-input', test_dataset_d3m,
-                    '--output', output_csv_path,
+                    '--pipeline', fix_path_for_docker(pipeline_path),
+                    '--problem', fix_path_for_docker(problem_path),
+                    '--input', fix_path_for_docker(train_dataset_d3m),
+                    '--test-input', fix_path_for_docker(test_dataset_d3m),
+                    '--output', fix_path_for_docker(output_csv_path),
                 ],
                 stderr=subprocess.PIPE
             )
@@ -337,12 +344,12 @@ class AutoML:
                 '--context', 'TESTING',
                 '--random-seed', '0',
                 'fit-score',
-                '--pipeline', pipeline_path,
-                '--problem', problem_path,
-                '--input', train_dataset_d3m,
-                '--test-input', test_dataset_d3m,
-                '--score-input', score_dataset_d3m,
-                '--scores', output_csv_path
+                '--pipeline', fix_path_for_docker(pipeline_path),
+                '--problem', fix_path_for_docker(problem_path),
+                '--input', fix_path_for_docker(train_dataset_d3m),
+                '--test-input', fix_path_for_docker(test_dataset_d3m),
+                '--score-input', fix_path_for_docker(score_dataset_d3m),
+                '--scores', fix_path_for_docker(output_csv_path),
             ],
             stderr=subprocess.PIPE
         )
@@ -509,8 +516,8 @@ class AutoML:
                 '-e', 'D3MINPUTDIR=/input',
                 '-e', 'D3MOUTPUTDIR=/output',
                 '-e', 'D3MSTATICDIR=/output',  # TODO: Temporal assignment for D3MSTATICDIR env variable
-                '-v', '%s:/input/dataset/' % self.dataset,
-                '-v', '%s:/output' % self.output_folder,
+                '-v', '%s:/input/dataset/' % fix_path_for_docker(self.dataset),
+                '-v', '%s:/output' % fix_path_for_docker(self.output_folder),
                 TA2_DOCKER_IMAGES[self.ta2_id]
             ]
         )
