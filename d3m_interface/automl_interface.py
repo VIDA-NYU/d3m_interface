@@ -33,14 +33,6 @@ IGNORE_SUMMARY_PRIMITIVES = {'d3m.primitives.data_transformation.construct_predi
                              'd3m.primitives.data_transformation.column_parser.Common'}
 
 
-def kernel_interrupt_handler(signal, frame):
-    logger.info('KeyboardInterrupt signal received, ending session...')
-    subprocess.call(['docker', 'stop', 'ta2_container'])
-    logger.info('Session ended!')
-
-    raise KeyboardInterrupt
-
-
 class AutoML:
 
     def __init__(self, output_folder, ta2_id='AlphaD3M'):
@@ -92,7 +84,6 @@ class AutoML:
         """
         suffix = 'TRAIN'
         dataset_in_container = '/input/dataset/'
-        signal.signal(signal.SIGINT, kernel_interrupt_handler)
 
         if not is_d3m_format(dataset, suffix):
             self.problem_config = {'target_column': target, 'metric': metric, 'task_keywords': task_keywords,
@@ -102,6 +93,7 @@ class AutoML:
         self.dataset = split(dataset)[0]
         self.start_ta2()
         search_id = None
+        signal.signal(signal.SIGINT, lambda signum, frame: self.ta3.do_stop_search(search_id))
         signal.signal(signal.SIGALRM, lambda signum, frame: self.ta3.do_stop_search(search_id))
         signal.alarm(time_bound * 60)
         train_dataset_d3m = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
