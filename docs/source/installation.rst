@@ -18,3 +18,11 @@ Windows
 ---------
 
 T.B.D
+
+
+How Docker is Used in D3M Interface
+-----------------------------------
+
+Docker creates containers instead of full-blown, virtual machines. So, everything you need to deploy `d3m-interface` will simply run on the Docker engine as a container. We give more details `here <https://gitlab.com/ViDA-NYU/d3m/d3m_interface/-/blob/master/d3m_interface/automl_interface.py#L510>`__ about how this container is set up to deploy different AutoML systems.
+
+Note that `d3m-interface` uses the pre-built Docker images (latest version) of the following AutoML systems: `AlphaD3M (NYU) <https://gitlab.com/ViDA-NYU/d3m/alphad3m>`__, `CMU <https://gitlab.com/sray/cmu-ta2>`__, `SRI <https://github.com/daraghhartnett/sri_tpot>`__, and `TAMU <https://gitlab.com/TAMU_D3M/Winter_2018_tamuta2>`__, which come installed with the most important primitive packages.
