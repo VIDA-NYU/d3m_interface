@@ -9,7 +9,7 @@ import pandas as pd
 from os.path import join, split
 import platform
 from d3m_interface.basic_ta3 import BasicTA3
-from d3m_interface.visualization import plot_metadata, plot_comparison_pipelines, plot_text_summary, plot_text_explanation
+from d3m_interface.visualization import *
 from d3m_interface.data_converter import is_d3m_format, dataset_to_d3m, d3mtext_to_dataframe, copy_folder, to_d3m_json
 from d3m_interface.pipeline import Pipeline
 from d3m_interface.confidence_calculator import create_confidence_pipeline
@@ -427,6 +427,24 @@ class AutoML:
 
         return profiler_inputs
 
+    def create_textanalizer_inputs(self, dataset, text_column, label_column, positive_label=1, negative_label=0):
+        """Create an proper input supported by VisualTextAnalyzer
+
+        :param dataset: Path to dataset.  It supports D3M dataset, and CSV file
+        :param text_column: Name of the column that contains the texts
+        :param label_column: Name of the column that contains the classes
+        :param positive_label: Label for the positive class
+        :param negative_label: Label for the negative class
+        """
+        suffix = split(dataset)[-1]
+
+        if is_d3m_format(dataset, suffix):
+            dataframe = d3mtext_to_dataframe(dataset, text_column)
+        else:
+            dataframe = pd.read_csv(dataset, index_col=False)
+
+        return get_words_entities(dataframe, text_column, label_column, positive_label, negative_label)
+
     def export_pipeline_code(self, pipeline_id, ipython_cell=True):
         """Converts a Pipeline Description to an executable Python script
 
@@ -592,7 +610,7 @@ class AutoML:
         else:
             plot_comparison_pipelines(precomputed_pipelines)
 
-    def plot_text_analysis(self, dataset, text_column, label_column, positive_label=1, negative_label=0):
+    def plot_text_analysis(self, dataset=None, text_column=None, label_column=None, positive_label=1, negative_label=0, precomputed_data=None):
         """Plot a visualization for text datasets
 
         :param dataset: Path to dataset.  It supports D3M dataset, and CSV file
@@ -600,15 +618,13 @@ class AutoML:
         :param label_column: Name of the column that contains the classes
         :param positive_label: Label for the positive class
         :param negative_label: Label for the negative class
+        :param precomputed_data: If not None, it loads words/named entities previously computed
         """
-        suffix = split(dataset)[-1]
-
-        if is_d3m_format(dataset, suffix):
-            dataframe = d3mtext_to_dataframe(dataset, text_column)
+        if precomputed_data is not None:
+            plot_text_summary(precomputed_data)
         else:
-            dataframe = pd.read_csv(dataset, index_col=False)
-
-        plot_text_summary(dataframe, text_column, label_column, positive_label, negative_label)
+            precomputed_data = self.create_textanalizer_inputs(dataset, text_column, label_column, positive_label, negative_label)
+            plot_text_summary(precomputed_data)
 
     def plot_text_explanation(self, model_id, instance_text, text_column, label_column, num_features=5, top_labels=1):
         """Plot a LIME visualization for model explanation
