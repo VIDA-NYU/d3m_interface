@@ -6,6 +6,7 @@ import logging
 import datetime
 import subprocess
 import pandas as pd
+import platform
 from os.path import join, split
 from d3m_interface.basic_ta3 import BasicTA3
 from d3m_interface.visualization import plot_metadata, plot_comparison_pipelines, plot_text_summary, plot_text_explanation
@@ -93,8 +94,9 @@ class AutoML:
         self.dataset = split(dataset)[0]
         self.start_ta2()
         search_id = None
-        signal.signal(signal.SIGALRM, lambda signum, frame: self.ta3.do_stop_search(search_id))
-        signal.alarm(time_bound * 60)
+        if platform.system() != 'Windows':
+            signal.signal(signal.SIGALRM, lambda signum, frame: self.ta3.do_stop_search(search_id))
+            signal.alarm(time_bound * 60)
         train_dataset_d3m = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
         problem_path = join(dataset, 'problem_TRAIN/problemDoc.json')
         start_time = datetime.datetime.utcnow()
@@ -144,7 +146,8 @@ class AutoML:
 
             self.leaderboard = pd.DataFrame(leaderboard, columns=['ranking', 'id', 'summary', metric])
 
-        signal.alarm(0)
+        if platform.system() != 'Windows':
+            signal.alarm(0)
 
         return self.pipelines.values()
 
