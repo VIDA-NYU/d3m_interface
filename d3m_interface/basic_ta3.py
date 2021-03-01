@@ -1,11 +1,9 @@
 import grpc
-import json
 import logging
 import d3m_automl_rpc.core_pb2 as pb_core
 import d3m_automl_rpc.core_pb2_grpc as pb_core_grpc
 import d3m_automl_rpc.value_pb2 as pb_value
-from os.path import join
-from d3m.utils import fix_uri, silence, compute_digest
+from d3m.utils import fix_uri
 from d3m.metadata import pipeline as pipeline_module
 from d3m.metadata.problem import Problem, PerformanceMetric
 from d3m_automl_rpc.utils import encode_problem_description, encode_performance_metric, decode_performance_metric, \
@@ -165,21 +163,9 @@ class BasicTA3:
 
         return pipeline_step_outputs
 
-    def do_describe(self, solution_id, search_id, output_folder):
-        pipeline = None
+    def do_describe(self, solution_id):
         pipeline_description = self.core.DescribeSolution(pb_core.DescribeSolutionRequest(solution_id=solution_id)).pipeline
-
-        try:
-            with silence():
-                pipeline = decode_pipeline_description(pipeline_description, pipeline_module.NoResolver())
-        except:
-            ####################
-            # TODO: Temporal solution. TA3TA2-API fails decoding pipeline when it has a primitive as hyperparameter
-            with open(join(output_folder, search_id, 'pipelines_searched', '%s.json' % solution_id)) as fin:
-                pipeline = json.load(fin)
-            pipeline['digest'] = compute_digest(pipeline)
-            return pipeline
-            ####################
+        pipeline = decode_pipeline_description(pipeline_description, pipeline_module.NoResolver())
 
         if pipeline is None:
             raise TypeError('Pipeline got a None value during decoding')

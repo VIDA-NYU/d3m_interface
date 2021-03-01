@@ -113,7 +113,7 @@ class AutoML:
         for pipeline in pipelines:
             end_time = datetime.datetime.utcnow()
             try:
-                pipeline_json = self.ta3.do_describe(pipeline['id'], search_id, self.output_folder)
+                pipeline_json = self.ta3.do_describe(pipeline['id'])
             except:
                 logger.warning('Pipeline id=%s could not be decoded' % pipeline['id'])
                 continue
