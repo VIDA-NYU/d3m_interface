@@ -28,6 +28,7 @@ def plot_text_summary(words_entities):
 
 def plot_text_explanation(automl, train_path, artificial_test_path, model_id, instance_text, text_column, label_column, num_features, top_labels):
     train_data = pd.read_csv(join(train_path, 'dataset_TRAIN', 'tables', 'learningData.csv'))
+    train_data = train_data[train_data[label_column].notna()]  # Remove NaN values
     class_label_encoder = LabelEncoder()
     numerical_labels = class_label_encoder.fit_transform(train_data[label_column])
     class_one_hot_encoder = OneHotEncoder(sparse=False, categories='auto')
@@ -38,6 +39,7 @@ def plot_text_explanation(automl, train_path, artificial_test_path, model_id, in
         # Computing prediction probabilities
         create_artificial_d3mtest(train_path, artificial_test_path, instance_text_list, label_column, text_column)
         probabilities = automl.test(model_id, artificial_test_path, calculate_confidence=True)
+        probabilities = probabilities[probabilities[label_column].notna()]  # Remove NaN values
         probabilities = probabilities.pivot(index='d3mIndex', columns=label_column, values='confidence')
         probabilities = probabilities.values
 
