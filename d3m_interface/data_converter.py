@@ -17,18 +17,28 @@ logger = logging.getLogger(__name__)
 DATASET_ID = 'internal_dataset'
 
 
-def is_d3m_format(dataset, suffix):
-    if isinstance(dataset, str) and exists(join(dataset, 'dataset_%s' % suffix, 'datasetDoc.json')):
+def is_d3m_format(dataset_path, suffix):
+    if isinstance(dataset_path, str) and exists(join(dataset_path, 'dataset_%s' % suffix, 'datasetDoc.json')):
         return True
 
     return False
 
 
-def dataset_to_d3m(dataset_uri, output_folder, problem_config, suffix):
+def is_d3m_collection(dataset_path, collection_type):
+    with open(dataset_path) as fin:
+        dataset_doc = json.load(fin)
+        for data_resource in dataset_doc['dataResources']:
+            if data_resource.get('isCollection', False):
+                if data_resource['resType'] == collection_type:
+                    return True
+    return False
+
+
+def dataset_to_d3m(dataset_path, output_folder, problem_config, suffix):
     problem_config = check_problem_config(problem_config)
     dataset_folder = join(output_folder, 'temp', 'dataset_d3mformat', suffix, 'dataset_%s' % suffix)
     problem_folder = join(output_folder, 'temp', 'dataset_d3mformat', suffix, 'problem_%s' % suffix)
-    dataset = create_d3m_dataset(dataset_uri, dataset_folder)
+    dataset = create_d3m_dataset(dataset_path, dataset_folder)
     create_d3m_problem(dataset['learningData'], problem_folder, problem_config)
 
     return join(output_folder, 'temp', 'dataset_d3mformat', suffix)
@@ -66,13 +76,13 @@ def check_problem_config(problem_config):
     return problem_config
 
 
-def create_d3m_dataset(dataset_uri, destination_path):
-    if callable(dataset_uri):
-        dataset_uri = 'sklearn://' + dataset_uri.__name__.replace('load_', '')
+def create_d3m_dataset(dataset_path, destination_path):
+    if callable(dataset_path):
+        dataset_path = 'sklearn://' + dataset_path.__name__.replace('load_', '')
     if exists(destination_path):
         shutil.rmtree(destination_path)
 
-    dataset = Dataset.load(fix_uri(dataset_uri), dataset_id=DATASET_ID)
+    dataset = Dataset.load(fix_uri(dataset_path), dataset_id=DATASET_ID)
     save_container(dataset, destination_path)
 
     return dataset
@@ -176,45 +186,6 @@ def d3mtext_to_dataframe(folder_path, text_column):
     dataframe[text_column] = dataframe[text_column].apply(read_text)
 
     return dataframe
-
-
-def copy_folder(source_path, destination_path):
-    if exists(destination_path):
-        shutil.rmtree(destination_path)
-
-    shutil.copytree(source_path, destination_path)
-
-
-def make_pipeline_module(pipeline, name, package='d3m', version='2019.10.10'):
-    pipeline_module = PipelineModule(package=package, version=version, name=name)
-    pipeline.add_module(pipeline_module)
-    return pipeline_module
-
-
-def make_data_module(pipeline):
-    input_data = make_pipeline_module(pipeline, 'dataset', 'data', '0.0')
-    return input_data
-
-
-def connect(pipeline, from_module, to_module, from_output='produce', to_input='inputs'):
-    connection = PipelineConnection(from_module_id=from_module.id,
-                                    from_output_name=from_output,
-                                    to_module_id=to_module.id,
-                                    to_input_name=to_input)
-    pipeline.add_connection(connection)
-    to_module.add_connection_to(connection)
-
-
-def set_hyperparams(pipeline, module, **hyperparams):
-    parameters = PipelineParameter(module_id=module.id,
-                                   name='hyperparams',
-                                   value=pickle.dumps(hyperparams))
-    pipeline.add_parameters(parameters)
-
-
-def get_class(name):
-    package, classname = name.rsplit('.', 1)
-    return getattr(importlib.import_module(package), classname)
 
 
 def _add_step(steps, modules, params, module_to_step, mod):

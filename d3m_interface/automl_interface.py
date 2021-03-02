@@ -2,21 +2,21 @@ import sys
 import time
 import json
 import signal
+import platform
 import logging
 import datetime
 import subprocess
 import pandas as pd
-import platform
-from os.path import join, split
-import platform
-from d3m_interface.basic_ta3 import BasicTA3
-from d3m_interface.visualization import *
-from d3m_interface.data_converter import is_d3m_format, dataset_to_d3m, d3mtext_to_dataframe, copy_folder, to_d3m_json
-from d3m_interface.pipeline import Pipeline
+import d3m_interface.visualization as vis
+from d3m_interface.data_converter import is_d3m_format, is_d3m_collection, dataset_to_d3m, d3mtext_to_dataframe, to_d3m_json
 from d3m_interface.confidence_calculator import create_confidence_pipeline
-from d3m.metadata.problem import PerformanceMetric
+from d3m_interface.utils import copy_folder, fix_path_for_docker
+from d3m_interface.basic_ta3 import BasicTA3
+from d3m_interface.pipeline import Pipeline
 from threading import Thread
+from os.path import join, split
 from IPython.core.getipython import get_ipython
+from d3m.metadata.problem import PerformanceMetric
 
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s', stream=sys.stdout)
@@ -33,12 +33,6 @@ IGNORE_SUMMARY_PRIMITIVES = {'d3m.primitives.data_transformation.construct_predi
                              'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
                              'd3m.primitives.data_transformation.denormalize.Common',
                              'd3m.primitives.data_transformation.column_parser.Common'}
-
-
-def fix_path_for_docker(path):
-    if platform.system() == 'Windows':
-        path = path.replace('\\', '/')
-    return path
 
 
 class AutoML:
@@ -449,7 +443,7 @@ class AutoML:
         else:
             dataframe = pd.read_csv(dataset, index_col=False)
 
-        return get_words_entities(dataframe, text_column, label_column, positive_label, negative_label)
+        return vis.get_words_entities(dataframe, text_column, label_column, positive_label, negative_label)
 
     def export_pipeline_code(self, pipeline_id, ipython_cell=True):
         """Converts a Pipeline Description to an executable Python script
@@ -590,17 +584,21 @@ class AutoML:
         """
         return self.leaderboard.style.hide_index()
 
-    def plot_summary_dataset(self, dataset):
+    def plot_summary_dataset(self, dataset, text_column=None):
         """Plot histograms of the dataset
 
         :param dataset: Path to dataset.  It supports D3M dataset, and CSV file
+        :param text_column: Name of the column that contains the texts. Only needed for D3M dataset that has collections
         """
         suffix = split(dataset)[-1]
 
         if is_d3m_format(dataset, suffix):
-            dataset = join(dataset, 'dataset_%s/tables/learningData.csv' % suffix)
+            if is_d3m_collection(join(dataset, 'dataset_%s' % suffix, 'datasetDoc.json'), 'text'):
+                dataset = d3mtext_to_dataframe(dataset, text_column)
+            else:
+                dataset = join(dataset, 'dataset_%s' % suffix, 'tables', 'learningData.csv')
 
-        plot_metadata(dataset)
+        vis.plot_metadata(dataset)
 
     def plot_comparison_pipelines(self, test_dataset=None, source_name=None, precomputed_pipelines=None):
         """Plot PipelineProfiler visualization
@@ -612,9 +610,9 @@ class AutoML:
         """
         if precomputed_pipelines is None:
             pipelineprofiler_inputs = self.create_pipelineprofiler_inputs(test_dataset, source_name)
-            plot_comparison_pipelines(pipelineprofiler_inputs)
+            vis.plot_comparison_pipelines(pipelineprofiler_inputs)
         else:
-            plot_comparison_pipelines(precomputed_pipelines)
+            vis.plot_comparison_pipelines(precomputed_pipelines)
 
     def plot_text_analysis(self, dataset=None, text_column=None, label_column=None, positive_label=1, negative_label=0, precomputed_data=None):
         """Plot a visualization for text datasets
@@ -627,10 +625,10 @@ class AutoML:
         :param precomputed_data: If not None, it loads words/named entities previously computed
         """
         if precomputed_data is not None:
-            plot_text_summary(precomputed_data)
+            vis.plot_text_summary(precomputed_data)
         else:
             precomputed_data = self.create_textanalizer_inputs(dataset, text_column, label_column, positive_label, negative_label)
-            plot_text_summary(precomputed_data)
+            vis.plot_text_summary(precomputed_data)
 
     def plot_text_explanation(self, model_id, instance_text, text_column, label_column, num_features=5, top_labels=1):
         """Plot a LIME visualization for model explanation
@@ -644,8 +642,8 @@ class AutoML:
         """
         train_path = join(self.dataset, 'TRAIN')
         artificial_test_path = join(self.output_folder, 'temp', 'dataset_d3mformat', 'TEST')
-        plot_text_explanation(self, train_path, artificial_test_path, model_id, instance_text, text_column,
-                              label_column, num_features, top_labels)
+        vis.plot_text_explanation(self, train_path, artificial_test_path, model_id, instance_text, text_column,
+                                  label_column, num_features, top_labels)
 
     @staticmethod
     def add_new_ta2(ta2_id, docker_image_url):
