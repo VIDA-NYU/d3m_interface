@@ -2,8 +2,6 @@ import os
 import json
 import shutil
 import logging
-import importlib
-import pickle
 import numpy as np
 import pandas as pd
 from os.path import join, exists, split, dirname
@@ -11,7 +9,6 @@ from d3m.container import Dataset
 from d3m.utils import fix_uri
 from d3m.container.utils import save_container
 from d3m.metadata.problem import PerformanceMetricBase, TaskKeywordBase
-from d3m_interface.pipeline import PipelineParameter, PipelineConnection, PipelineModule
 
 logger = logging.getLogger(__name__)
 DATASET_ID = 'internal_dataset'
