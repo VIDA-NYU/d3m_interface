@@ -155,10 +155,11 @@ def create_artificial_d3mtest(train_path, artificial_test_path, new_instances, t
     for i in range(len(new_instances)):
         text_value = new_instances[i]
         if need_media_folder:
-            file_path = join(media_folder, str(i) + '.txt')
+            file_name = str(i) + '.txt'
+            file_path = join(media_folder, file_name)
             with open(file_path, 'w') as fin:
                 fin.write(text_value)
-            text_value = file_path
+            text_value = file_name
 
         data['d3mIndex'].append(i)
         data[text_column].append(text_value)
