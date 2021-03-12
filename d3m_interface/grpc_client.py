@@ -13,7 +13,7 @@ from d3m_automl_rpc.utils import encode_problem_description, encode_performance_
 logger = logging.getLogger(__name__)
 
 
-class BasicTA3:
+class GrpcClient:
     def __init__(self):
         self.channel = grpc.insecure_channel('localhost:45042')
         self.core = pb_core_grpc.CoreStub(self.channel)
@@ -26,7 +26,7 @@ class BasicTA3:
         version = pb_core.DESCRIPTOR.GetOptions().Extensions[pb_core.protocol_version]
 
         search = self.core.SearchSolutions(pb_core.SearchSolutionsRequest(
-            user_agent='basicta3_stub',
+            user_agent='ta3_stub',
             version=version,
             time_bound_search=time_bound,
             time_bound_run=time_bound_run,
