@@ -21,10 +21,7 @@ class BasicTA3:
     def do_hello(self):
         self.core.Hello(pb_core.HelloRequest())
 
-    def do_list_primitives(self):
-        self.core.ListPrimitives(pb_core.ListPrimitivesRequest())
-
-    def do_search(self, dataset_path, problem_path, time_bound, time_bound_run, pipeline_template=None):
+    def search_solutions(self, dataset_path, problem_path, time_bound, time_bound_run, pipeline_template=None):
         problem = Problem.load(problem_uri=fix_uri(problem_path))
         version = pb_core.DESCRIPTOR.GetOptions().Extensions[pb_core.protocol_version]
 
@@ -55,7 +52,7 @@ class BasicTA3:
                 pipeline_id = result.solution_id
                 yield {'id': pipeline_id, 'search_id': str(search.search_id)}
 
-    def do_score(self, solution_id, dataset_path, problem_path, method, stratified, shuffle, folds, train_ratio, random_seed):
+    def score_solutions(self, solution_id, dataset_path, problem_path, method, stratified, shuffle, folds, train_ratio, random_seed):
         problem = Problem.load(problem_uri=fix_uri(problem_path))
         methods_mapping = {'cross_validation': 'K_FOLD', 'holdout': 'HOLDOUT'}
         metrics = []
@@ -109,7 +106,7 @@ class BasicTA3:
 
         return score_data
 
-    def do_train(self, solution_id, dataset_path, expose_outputs):
+    def train_solution(self, solution_id, dataset_path, expose_outputs):
         fitted_solution_id = None
         pipeline_step_outputs = {}
 
@@ -137,7 +134,7 @@ class BasicTA3:
 
         return fitted_solution_id, pipeline_step_outputs
 
-    def do_test(self, fitted_solution_id, dataset_path, expose_outputs):
+    def test_solution(self, fitted_solution_id, dataset_path, expose_outputs):
         pipeline_step_outputs = {}
 
         response = self.core.ProduceSolution(pb_core.ProduceSolutionRequest(
@@ -163,7 +160,29 @@ class BasicTA3:
 
         return pipeline_step_outputs
 
-    def do_describe(self, solution_id):
+    def save_solution(self, solution_id):
+        response = self.core.SaveSolution(pb_core.SaveSolutionRequest(solution_id=solution_id))
+
+        return response.solution_uri
+
+    def load_solution(self, solution_path):
+        solution_uri = fix_uri(solution_path)
+        response = self.core.LoadSolution(pb_core.LoadSolutionRequest(solution_uri=solution_uri))
+
+        return response.solution_id
+
+    def save_fitted_solution(self, fitted_solution_id):
+        response = self.core.SaveFittedSolution(pb_core.SaveFittedSolutionRequest(fitted_solution_id=fitted_solution_id))
+
+        return response.fitted_solution_uri
+
+    def load_fitted_solution(self, fitted_solution_path):
+        fitted_solution_uri = fix_uri(fitted_solution_path)
+        response = self.core.LoadFittedSolution(pb_core.LoadFittedSolutionRequest(fitted_solution_uri=fitted_solution_uri))
+
+        return response.fitted_solution_id
+
+    def describe_solution(self, solution_id):
         pipeline_description = self.core.DescribeSolution(pb_core.DescribeSolutionRequest(solution_id=solution_id)).pipeline
         pipeline = decode_pipeline_description(pipeline_description, pipeline_module.NoResolver())
 
@@ -172,13 +191,13 @@ class BasicTA3:
 
         return pipeline.to_json_structure()
 
-    def do_save_fitted_solution(self, fitted_solution_id):
-        response = self.core.SaveFittedSolution(pb_core.SaveFittedSolutionRequest(fitted_solution_id=fitted_solution_id))
-
-        return response.fitted_solution_uri
-
-    def do_export(self, fitted_solution_id, rank=1):
+    def export_solution(self, fitted_solution_id, rank=1):
         self.core.SolutionExport(pb_core.SolutionExportRequest(solution_id=fitted_solution_id, rank=rank))
 
-    def do_stop_search(self, search_id):
+    def list_primitives(self):
+        response = self.core.ListPrimitives(pb_core.ListPrimitivesRequest())
+
+        return response.primitives
+
+    def stop_search(self, search_id):
         self.core.StopSearchSolutions(pb_core.StopSearchSolutionsRequest(search_id=search_id))

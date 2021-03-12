@@ -13,6 +13,7 @@ from d3m_interface.confidence_calculator import create_confidence_pipeline
 from d3m_interface.utils import copy_folder, fix_path_for_docker
 from d3m_interface.basic_ta3 import BasicTA3
 from d3m_interface.pipeline import Pipeline
+from shutil import copyfile
 from threading import Thread
 from os.path import join, split
 from IPython.core.getipython import get_ipython
@@ -82,7 +83,6 @@ class AutoML:
         :param train_ratio: Represent the proportion of the dataset to include in the train split
         :param random_seed: The number seed used by the random generator
         :param kwargs: Different arguments for problem's settings (e.g. pos_label for binary problems using F1)
-        :returns: List of pipelines
         """
         suffix = 'TRAIN'
         dataset_in_container = '/input/dataset/'
@@ -96,15 +96,15 @@ class AutoML:
         self.start_ta2()
         search_id = None
         if platform.system() != 'Windows':
-            signal.signal(signal.SIGALRM, lambda signum, frame: self.ta3.do_stop_search(search_id))
+            signal.signal(signal.SIGALRM, lambda signum, frame: self.ta3.stop_search(search_id))
             signal.alarm(time_bound * 60)
         train_dataset_d3m = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
         problem_path = join(dataset, 'problem_TRAIN/problemDoc.json')
         start_time = datetime.datetime.utcnow()
         try:
-            pipelines = self.ta3.do_search(train_dataset_d3m, problem_path, time_bound, time_bound_run)
+            pipelines = self.ta3.search_solutions(train_dataset_d3m, problem_path, time_bound, time_bound_run)
         except KeyboardInterrupt:
-            self.ta3.do_stop_search(search_id)
+            self.ta3.stop_search(search_id)
             raise
 
         jobs = []
@@ -112,7 +112,7 @@ class AutoML:
         for pipeline in pipelines:
             end_time = datetime.datetime.utcnow()
             try:
-                pipeline_json = self.ta3.do_describe(pipeline['id'])
+                pipeline_json = self.ta3.describe_solution(pipeline['id'])
             except:
                 logger.warning('Pipeline id=%s could not be decoded' % pipeline['id'])
                 continue
@@ -150,8 +150,6 @@ class AutoML:
         if platform.system() != 'Windows':
             signal.alarm(0)
 
-        return self.pipelines.values()
-
     def train(self, pipeline_id, expose_outputs=None):
         """Train a model using an specific ML pipeline
 
@@ -159,7 +157,7 @@ class AutoML:
         :param expose_outputs: The output of the pipeline steps. If None, it doesn't expose any output of the steps.
             If str, should be 'all' to shows the output of each step in the pipeline, If list, it should contain the
             ids of the steps, e.g. 'steps.2.produce'
-        :returns: A dictionary that contains the id and fitted model with/without the pipeline step outputs
+        :returns: An id of the fitted pipeline with/without the pipeline step outputs
         """
         dataset_in_container = '/input/dataset/'
 
@@ -176,16 +174,7 @@ class AutoML:
                     expose_outputs.append('steps.%d.%s' % (index, id_output['id']))
 
         train_dataset_d3m = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
-        fitted_pipeline_id, pipeline_step_outputs = self.ta3.do_train(pipeline_id, train_dataset_d3m, expose_outputs)
-        fitted_pipeline = None
-        # TODO: Implement other method to save the fitted pipeline
-        # try:
-        #     fitted_solution_uri = self.ta3.do_save_fitted_solution(fitted_pipeline_id)
-        #     fitted_solution_uri = fitted_solution_uri.replace('file:///output/', '')
-        #     with open(join(self.output_folder, fitted_solution_uri), 'rb') as fin:
-        #         fitted_pipeline = pickle.load(fin)
-        # except Exception as e:
-        #     logger.warning('Fitted pipeline id=%s could not be loaded' % pipeline_id, exc_info=e)
+        fitted_pipeline_id, pipeline_step_outputs = self.ta3.train_solution(pipeline_id, train_dataset_d3m, expose_outputs)
 
         for step_id, step_csv_uri in pipeline_step_outputs.items():
             if not step_csv_uri.startswith('file://'):
@@ -196,18 +185,17 @@ class AutoML:
             pipeline_step_outputs[step_id] = step_dataframe
 
         self.pipelines[pipeline_id]['fitted_id'] = fitted_pipeline_id
-        model = {'id': pipeline_id, 'fitted': fitted_pipeline}
         logger.info('Training finished!')
 
         if len(expose_outputs) == 0:
-            return model
+            return fitted_pipeline_id
 
-        return model, pipeline_step_outputs
+        return fitted_pipeline_id, pipeline_step_outputs
 
-    def test(self, model, test_dataset, expose_outputs=None, calculate_confidence=False):
+    def test(self, pipeline_id, test_dataset, expose_outputs=None, calculate_confidence=False):
         """Test a model
 
-        :param model: Dict that contains the id and fitted model
+        :param pipeline_id: The id of the fitted pipeline
         :param test_dataset: Path to dataset. It supports D3M dataset, and CSV file
         :param expose_outputs: The output of the pipeline steps. If None, it doesn't expose any output of the steps.
             If str, should be 'all' to shows the output of each step in the pipeline, If list, it should contain the
@@ -229,7 +217,6 @@ class AutoML:
             dataset_in_container = '/output/temp/dataset_d3mformat/'
 
         logger.info('Testing model...')
-        pipeline_id = model['id']
         test_dataset_d3m = join(dataset_in_container, 'TEST/dataset_TEST/datasetDoc.json')
 
         if calculate_confidence:
@@ -284,7 +271,7 @@ class AutoML:
         if 'outputs.0' not in expose_outputs:
             expose_outputs.append('outputs.0')
 
-        pipeline_step_outputs = self.ta3.do_test(fitted_pipeline_id, test_dataset_d3m, expose_outputs)
+        pipeline_step_outputs = self.ta3.test_solution(fitted_pipeline_id, test_dataset_d3m, expose_outputs)
 
         for step_id, step_csv_uri in pipeline_step_outputs.items():
             if not step_csv_uri.startswith('file://'):
@@ -364,6 +351,23 @@ class AutoML:
         metric = df['metric'][0].lower()
 
         return metric, score
+
+    def save_pipeline(self, pipeline_id, pipeline_path_dst):
+        if pipeline_id not in self.pipelines:
+            raise ValueError('Pipeline id=%s does not exist' % pipeline_id)
+
+        pipeline_uri = self.ta3.save_solution(pipeline_id)
+        pipeline_path_src = join(self.output_folder, pipeline_uri.replace('file:///output/', ''))
+        copyfile(pipeline_path_src, pipeline_path_dst)
+        logger.info('Pipeline saved at "%s"' % pipeline_path_dst)
+
+    def load_pipeline(self, pipeline_path):
+        pipeline_path_dst = join(self.output_folder, 'loaded_pipeline.json')
+        copyfile(pipeline_path, pipeline_path_dst)
+        pipeline_path_container = '/output/loaded_pipeline.json'
+        id_pipeline = self.ta3.load_solution(pipeline_path_container)
+
+        return id_pipeline
 
     def create_pipelineprofiler_inputs(self, test_dataset=None, source_name=None):
         """Create an proper input supported by PipelineProfiler based on the pipelines generated by a TA2 system
@@ -524,7 +528,7 @@ class AutoML:
     def start_ta2(self):
         logger.info('Initializing %s AutoML...', self.ta2_id)
         subprocess.call(['docker', 'stop', 'ta2_container'])
-
+        
         self.ta2 = subprocess.Popen(
             [
                 'docker', 'run', '--rm',
@@ -539,6 +543,7 @@ class AutoML:
                 TA2_DOCKER_IMAGES[self.ta2_id]
             ]
         )
+
         time.sleep(4)  # Wait for TA2
         while True:
             try:
@@ -557,8 +562,8 @@ class AutoML:
                         train_ratio, random_seed):
         try:
             pipeline['start_time'] = datetime.datetime.utcnow().isoformat() + 'Z'
-            score_data = self.ta3.do_score(pipeline['id'], train_dataset, problem_path, method, stratified, shuffle,
-                                           folds, train_ratio, random_seed)
+            score_data = self.ta3.score_solutions(pipeline['id'], train_dataset, problem_path, method, stratified, shuffle,
+                                                  folds, train_ratio, random_seed)
             logger.info('Scored pipeline id=%s, %s=%s' % (pipeline['id'], score_data['metric'], score_data['score']))
             pipeline['end_time'] = datetime.datetime.utcnow().isoformat() + 'Z'
             pipeline['score'] = score_data['score']
