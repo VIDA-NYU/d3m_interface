@@ -11,11 +11,10 @@ import d3m_interface.visualization as vis
 from d3m_interface.data_converter import is_d3m_format, is_d3m_collection, dataset_to_d3m, d3mtext_to_dataframe, to_d3m_json
 from d3m_interface.confidence_calculator import create_confidence_pipeline
 from d3m_interface.utils import copy_folder, fix_path_for_docker
-from d3m_interface.basic_ta3 import BasicTA3
+from d3m_interface.grpc_client import GrpcClient
 from d3m_interface.pipeline import Pipeline
-from shutil import copyfile
 from threading import Thread
-from os.path import join, split
+from os.path import join, split, exists
 from IPython.core.getipython import get_ipython
 from d3m.metadata.problem import PerformanceMetric
 
@@ -54,7 +53,6 @@ class AutoML:
         self.ta2 = None
         self.ta3 = None
         self.dataset = None
-        self.leaderboard = None
         self.problem_config = None
 
     def search_pipelines(self, dataset, time_bound, time_bound_run=5, target=None, metric=None, task_keywords=None,
@@ -138,15 +136,6 @@ class AutoML:
         else:
             logger.info('Search completed, no pipelines found!')
 
-        if len(self.pipelines) > 0:
-            leaderboard = []
-            sorted_pipelines = sorted(self.pipelines.values(), key=lambda x: x['normalized_score'], reverse=True)
-            metric = sorted_pipelines[0]['metric']
-            for position, pipeline_data in enumerate(sorted_pipelines, 1):
-                leaderboard.append([position, pipeline_data['id'], pipeline_data['summary'],  pipeline_data['score']])
-
-            self.leaderboard = pd.DataFrame(leaderboard, columns=['ranking', 'id', 'summary', metric])
-
         if platform.system() != 'Windows':
             signal.alarm(0)
 
@@ -159,6 +148,7 @@ class AutoML:
             ids of the steps, e.g. 'steps.2.produce'
         :returns: An id of the fitted pipeline with/without the pipeline step outputs
         """
+        # TODO: It should receive the path to the train dataset as an optional parameter
         dataset_in_container = '/input/dataset/'
 
         if pipeline_id not in self.pipelines:
@@ -195,7 +185,7 @@ class AutoML:
     def test(self, pipeline_id, test_dataset, expose_outputs=None, calculate_confidence=False):
         """Test a model
 
-        :param pipeline_id: The id of the fitted pipeline
+        :param pipeline_id: The id of a fitted pipeline
         :param test_dataset: Path to dataset. It supports D3M dataset, and CSV file
         :param expose_outputs: The output of the pipeline steps. If None, it doesn't expose any output of the steps.
             If str, should be 'all' to shows the output of each step in the pipeline, If list, it should contain the
@@ -213,7 +203,7 @@ class AutoML:
         elif test_dataset != join(self.dataset, 'TEST'):  # Special case for D3M test dataset with different path
             destination_path = join(self.output_folder, 'temp', 'dataset_d3mformat', 'TEST')
             if test_dataset != destination_path:
-                copy_folder(test_dataset, destination_path)
+                copy_folder(test_dataset, destination_path, True)
             dataset_in_container = '/output/temp/dataset_d3mformat/'
 
         logger.info('Testing model...')
@@ -292,7 +282,7 @@ class AutoML:
     def score(self, pipeline_id, test_dataset):
         """Compute a proper score of the model
 
-        :param pipeline_id: A id of a pipeline or a Pipeline object
+        :param pipeline_id: The id of a pipeline or a Pipeline object
         :param test_dataset: Path to dataset. It supports D3M dataset, and CSV file
         :returns: A tuple holding metric name and score value
         """
@@ -352,22 +342,59 @@ class AutoML:
 
         return metric, score
 
-    def save_pipeline(self, pipeline_id, pipeline_path_dst):
+    def save_pipeline(self, pipeline_id, output_folder):
+        """Save a pipeline on disk
+
+        :param pipeline_id: The id of the pipeline to be saved
+        :param output_folder: Path to the folder where the pipeline will be saved
+        """
         if pipeline_id not in self.pipelines:
             raise ValueError('Pipeline id=%s does not exist' % pipeline_id)
 
-        pipeline_uri = self.ta3.save_solution(pipeline_id)
-        pipeline_path_src = join(self.output_folder, pipeline_uri.replace('file:///output/', ''))
-        copyfile(pipeline_path_src, pipeline_path_dst)
-        logger.info('Pipeline saved at "%s"' % pipeline_path_dst)
+        solution_uri = self.ta3.save_solution(pipeline_id)
+        folder_src_path = join(self.output_folder, solution_uri.replace('file:///output/', ''))
+        folder_dst_path = join(output_folder, pipeline_id)
+        copy_folder(folder_src_path, folder_dst_path, True)
+        pipeline_run = {
+            'metric': self.pipelines[pipeline_id]['metric'],
+            'score': self.pipelines[pipeline_id]['score'],
+            'normalized_score': self.pipelines[pipeline_id]['normalized_score'],
+            'start_time': self.pipelines[pipeline_id]['start_time'],
+            'end_time': self.pipelines[pipeline_id]['end_time'],
+            'search_id': self.pipelines[pipeline_id]['search_id'],
+            'summary': self.pipelines[pipeline_id]['summary'],
+            'json_representation': self.pipelines[pipeline_id]['json_representation'],
+            'dataset_path': self.dataset
+        }
+
+        with open(join(folder_dst_path, 'run.json'), 'w') as fout:
+            json.dump(pipeline_run, fout, indent=2)
+
+        logger.info('Pipeline saved at "%s"' % folder_dst_path)
 
     def load_pipeline(self, pipeline_path):
-        pipeline_path_dst = join(self.output_folder, 'loaded_pipeline.json')
-        copyfile(pipeline_path, pipeline_path_dst)
-        pipeline_path_container = '/output/loaded_pipeline.json'
-        id_pipeline = self.ta3.load_solution(pipeline_path_container)
+        """Load a previous saved pipeline
 
-        return id_pipeline
+        :param pipeline_path: Path to the folder where the pipeline is saved
+        """
+        pipeline_run_path = join(pipeline_path, 'run.json')
+        if not exists(pipeline_run_path):
+            raise ValueError('Can not load pipelines from "%s". File run.json does not exist' % pipeline_path)
+
+        with open(pipeline_run_path) as fin:
+            pipeline_run = json.load(fin)
+
+        if self.ta2 is None:
+            self.dataset = pipeline_run['dataset_path']
+            self.start_ta2()
+
+        folder_dst_path = join(self.output_folder, 'temp', 'loaded_pipelines')
+        copy_folder(pipeline_path, folder_dst_path, True)
+        pipeline_path_container = '/output/temp/loaded_pipelines'
+        id_pipeline = self.ta3.load_solution(pipeline_path_container)
+        pipeline_run['id'] = id_pipeline
+        self.pipelines[id_pipeline] = pipeline_run
+        logger.info('Pipeline id=%s loaded!' % id_pipeline)
 
     def create_pipelineprofiler_inputs(self, test_dataset=None, source_name=None):
         """Create an proper input supported by PipelineProfiler based on the pipelines generated by a TA2 system
@@ -528,7 +555,7 @@ class AutoML:
     def start_ta2(self):
         logger.info('Initializing %s AutoML...', self.ta2_id)
         subprocess.call(['docker', 'stop', 'ta2_container'])
-        
+
         self.ta2 = subprocess.Popen(
             [
                 'docker', 'run', '--rm',
@@ -547,7 +574,7 @@ class AutoML:
         time.sleep(4)  # Wait for TA2
         while True:
             try:
-                self.ta3 = BasicTA3()
+                self.ta3 = GrpcClient()
                 self.ta3.do_hello()
                 logger.info('%s AutoML initialized!', self.ta2_id)
                 break
@@ -587,7 +614,18 @@ class AutoML:
     def plot_leaderboard(self):
         """Plot pipelines' leaderboard
         """
-        return self.leaderboard.style.hide_index()
+        leaderboard_data = []
+        metric = 'metric'
+
+        if len(self.pipelines) > 0:
+            sorted_pipelines = sorted(self.pipelines.values(), key=lambda x: x['normalized_score'], reverse=True)
+            metric = sorted_pipelines[0]['metric']
+            for position, pipeline in enumerate(sorted_pipelines, 1):
+                leaderboard_data.append([position, pipeline['id'], pipeline['summary'],  pipeline['score']])
+
+        leaderboard = pd.DataFrame(leaderboard_data, columns=['ranking', 'id', 'summary', metric])
+
+        return leaderboard.style.hide_index()
 
     def plot_summary_dataset(self, dataset, text_column=None):
         """Plot histograms of the dataset

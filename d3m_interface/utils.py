@@ -9,8 +9,8 @@ def fix_path_for_docker(path):
     return path
 
 
-def copy_folder(source_path, destination_path):
-    if exists(destination_path):
+def copy_folder(source_path, destination_path, remove_destination=False):
+    if remove_destination and exists(destination_path):
         shutil.rmtree(destination_path)
 
     shutil.copytree(source_path, destination_path)
