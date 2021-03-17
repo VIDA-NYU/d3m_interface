@@ -698,4 +698,3 @@ class AutoML:
         """
         TA2_DOCKER_IMAGES[ta2_id] = docker_image_url
         logger.info('%s TA2 added!', ta2_id)
-
