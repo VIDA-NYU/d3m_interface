@@ -2,20 +2,21 @@ import sys
 import time
 import json
 import signal
+import platform
 import logging
 import datetime
 import subprocess
 import pandas as pd
-from os.path import join, split
-import platform
-from d3m_interface.basic_ta3 import BasicTA3
-from d3m_interface.visualization import plot_metadata, plot_comparison_pipelines, plot_text_summary, plot_text_explanation
-from d3m_interface.data_converter import is_d3m_format, dataset_to_d3m, d3mtext_to_dataframe, copy_folder, to_d3m_json
-from d3m_interface.pipeline import Pipeline
+import d3m_interface.visualization as vis
+from d3m_interface.data_converter import is_d3m_format, is_d3m_collection, dataset_to_d3m, d3mtext_to_dataframe, to_d3m_json
 from d3m_interface.confidence_calculator import create_confidence_pipeline
-from d3m.metadata.problem import PerformanceMetric
+from d3m_interface.utils import copy_folder, fix_path_for_docker
+from d3m_interface.grpc_client import GrpcClient
+from d3m_interface.pipeline import Pipeline
 from threading import Thread
+from os.path import join, split, exists
 from IPython.core.getipython import get_ipython
+from d3m.metadata.problem import PerformanceMetric
 
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s', stream=sys.stdout)
@@ -32,12 +33,6 @@ IGNORE_SUMMARY_PRIMITIVES = {'d3m.primitives.data_transformation.construct_predi
                              'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
                              'd3m.primitives.data_transformation.denormalize.Common',
                              'd3m.primitives.data_transformation.column_parser.Common'}
-
-
-def fix_path_for_docker(path):
-    if platform.system() == 'Windows':
-        path = path.replace('\\', '/')
-    return path
 
 
 class AutoML:
@@ -58,7 +53,6 @@ class AutoML:
         self.ta2 = None
         self.ta3 = None
         self.dataset = None
-        self.leaderboard = None
         self.problem_config = None
 
     def search_pipelines(self, dataset, time_bound, time_bound_run=5, target=None, metric=None, task_keywords=None,
@@ -87,7 +81,6 @@ class AutoML:
         :param train_ratio: Represent the proportion of the dataset to include in the train split
         :param random_seed: The number seed used by the random generator
         :param kwargs: Different arguments for problem's settings (e.g. pos_label for binary problems using F1)
-        :returns: List of pipelines
         """
         suffix = 'TRAIN'
         dataset_in_container = '/input/dataset/'
@@ -100,20 +93,24 @@ class AutoML:
         self.dataset = split(dataset)[0]
         self.start_ta2()
         search_id = None
-        signal.signal(signal.SIGINT, lambda signum, frame: self.ta3.do_stop_search(search_id))
-        signal.signal(signal.SIGALRM, lambda signum, frame: self.ta3.do_stop_search(search_id))
-        signal.alarm(time_bound * 60)
+        if platform.system() != 'Windows':
+            signal.signal(signal.SIGALRM, lambda signum, frame: self.ta3.stop_search(search_id))
+            signal.alarm(time_bound * 60)
         train_dataset_d3m = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
         problem_path = join(dataset, 'problem_TRAIN/problemDoc.json')
         start_time = datetime.datetime.utcnow()
-        pipelines = self.ta3.do_search(train_dataset_d3m, problem_path, time_bound, time_bound_run)
+        try:
+            pipelines = self.ta3.search_solutions(train_dataset_d3m, problem_path, time_bound, time_bound_run)
+        except KeyboardInterrupt:
+            self.ta3.stop_search(search_id)
+            raise
 
         jobs = []
 
         for pipeline in pipelines:
             end_time = datetime.datetime.utcnow()
             try:
-                pipeline_json = self.ta3.do_describe(pipeline['id'], search_id, self.output_folder)
+                pipeline_json = self.ta3.describe_solution(pipeline['id'])
             except:
                 logger.warning('Pipeline id=%s could not be decoded' % pipeline['id'])
                 continue
@@ -139,18 +136,8 @@ class AutoML:
         else:
             logger.info('Search completed, no pipelines found!')
 
-        if len(self.pipelines) > 0:
-            leaderboard = []
-            sorted_pipelines = sorted(self.pipelines.values(), key=lambda x: x['normalized_score'], reverse=True)
-            metric = sorted_pipelines[0]['metric']
-            for position, pipeline_data in enumerate(sorted_pipelines, 1):
-                leaderboard.append([position, pipeline_data['id'], pipeline_data['summary'],  pipeline_data['score']])
-
-            self.leaderboard = pd.DataFrame(leaderboard, columns=['ranking', 'id', 'summary', metric])
-
-        signal.alarm(0)
-
-        return self.pipelines.values()
+        if platform.system() != 'Windows':
+            signal.alarm(0)
 
     def train(self, pipeline_id, expose_outputs=None):
         """Train a model using an specific ML pipeline
@@ -159,8 +146,9 @@ class AutoML:
         :param expose_outputs: The output of the pipeline steps. If None, it doesn't expose any output of the steps.
             If str, should be 'all' to shows the output of each step in the pipeline, If list, it should contain the
             ids of the steps, e.g. 'steps.2.produce'
-        :returns: A dictionary that contains the id and fitted model with/without the pipeline step outputs
+        :returns: An id of the fitted pipeline with/without the pipeline step outputs
         """
+        # TODO: It should receive the path to the train dataset as an optional parameter
         dataset_in_container = '/input/dataset/'
 
         if pipeline_id not in self.pipelines:
@@ -176,16 +164,7 @@ class AutoML:
                     expose_outputs.append('steps.%d.%s' % (index, id_output['id']))
 
         train_dataset_d3m = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
-        fitted_pipeline_id, pipeline_step_outputs = self.ta3.do_train(pipeline_id, train_dataset_d3m, expose_outputs)
-        fitted_pipeline = None
-        # TODO: Implement other method to save the fitted pipeline
-        # try:
-        #     fitted_solution_uri = self.ta3.do_save_fitted_solution(fitted_pipeline_id)
-        #     fitted_solution_uri = fitted_solution_uri.replace('file:///output/', '')
-        #     with open(join(self.output_folder, fitted_solution_uri), 'rb') as fin:
-        #         fitted_pipeline = pickle.load(fin)
-        # except Exception as e:
-        #     logger.warning('Fitted pipeline id=%s could not be loaded' % pipeline_id, exc_info=e)
+        fitted_pipeline_id, pipeline_step_outputs = self.ta3.train_solution(pipeline_id, train_dataset_d3m, expose_outputs)
 
         for step_id, step_csv_uri in pipeline_step_outputs.items():
             if not step_csv_uri.startswith('file://'):
@@ -196,18 +175,17 @@ class AutoML:
             pipeline_step_outputs[step_id] = step_dataframe
 
         self.pipelines[pipeline_id]['fitted_id'] = fitted_pipeline_id
-        model = {'id': pipeline_id, 'fitted': fitted_pipeline}
         logger.info('Training finished!')
 
         if len(expose_outputs) == 0:
-            return model
+            return fitted_pipeline_id
 
-        return model, pipeline_step_outputs
+        return fitted_pipeline_id, pipeline_step_outputs
 
-    def test(self, model, test_dataset, expose_outputs=None, calculate_confidence=False):
+    def test(self, pipeline_id, test_dataset, expose_outputs=None, calculate_confidence=False):
         """Test a model
 
-        :param model: Dict that contains the id and fitted model
+        :param pipeline_id: The id of a fitted pipeline
         :param test_dataset: Path to dataset. It supports D3M dataset, and CSV file
         :param expose_outputs: The output of the pipeline steps. If None, it doesn't expose any output of the steps.
             If str, should be 'all' to shows the output of each step in the pipeline, If list, it should contain the
@@ -225,11 +203,10 @@ class AutoML:
         elif test_dataset != join(self.dataset, 'TEST'):  # Special case for D3M test dataset with different path
             destination_path = join(self.output_folder, 'temp', 'dataset_d3mformat', 'TEST')
             if test_dataset != destination_path:
-                copy_folder(test_dataset, destination_path)
+                copy_folder(test_dataset, destination_path, True)
             dataset_in_container = '/output/temp/dataset_d3mformat/'
 
         logger.info('Testing model...')
-        pipeline_id = model['id']
         test_dataset_d3m = join(dataset_in_container, 'TEST/dataset_TEST/datasetDoc.json')
 
         if calculate_confidence:
@@ -284,7 +261,7 @@ class AutoML:
         if 'outputs.0' not in expose_outputs:
             expose_outputs.append('outputs.0')
 
-        pipeline_step_outputs = self.ta3.do_test(fitted_pipeline_id, test_dataset_d3m, expose_outputs)
+        pipeline_step_outputs = self.ta3.test_solution(fitted_pipeline_id, test_dataset_d3m, expose_outputs)
 
         for step_id, step_csv_uri in pipeline_step_outputs.items():
             if not step_csv_uri.startswith('file://'):
@@ -305,7 +282,7 @@ class AutoML:
     def score(self, pipeline_id, test_dataset):
         """Compute a proper score of the model
 
-        :param pipeline_id: A id of a pipeline or a Pipeline object
+        :param pipeline_id: The id of a pipeline or a Pipeline object
         :param test_dataset: Path to dataset. It supports D3M dataset, and CSV file
         :returns: A tuple holding metric name and score value
         """
@@ -364,6 +341,60 @@ class AutoML:
         metric = df['metric'][0].lower()
 
         return metric, score
+
+    def save_pipeline(self, pipeline_id, output_folder):
+        """Save a pipeline on disk
+
+        :param pipeline_id: The id of the pipeline to be saved
+        :param output_folder: Path to the folder where the pipeline will be saved
+        """
+        if pipeline_id not in self.pipelines:
+            raise ValueError('Pipeline id=%s does not exist' % pipeline_id)
+
+        solution_uri = self.ta3.save_solution(pipeline_id)
+        folder_src_path = join(self.output_folder, solution_uri.replace('file:///output/', ''))
+        folder_dst_path = join(output_folder, pipeline_id)
+        copy_folder(folder_src_path, folder_dst_path, True)
+        pipeline_run = {
+            'metric': self.pipelines[pipeline_id]['metric'],
+            'score': self.pipelines[pipeline_id]['score'],
+            'normalized_score': self.pipelines[pipeline_id]['normalized_score'],
+            'start_time': self.pipelines[pipeline_id]['start_time'],
+            'end_time': self.pipelines[pipeline_id]['end_time'],
+            'search_id': self.pipelines[pipeline_id]['search_id'],
+            'summary': self.pipelines[pipeline_id]['summary'],
+            'json_representation': self.pipelines[pipeline_id]['json_representation'],
+            'dataset_path': self.dataset
+        }
+
+        with open(join(folder_dst_path, 'run.json'), 'w') as fout:
+            json.dump(pipeline_run, fout, indent=2)
+
+        logger.info('Pipeline saved at "%s"' % folder_dst_path)
+
+    def load_pipeline(self, pipeline_path):
+        """Load a previous saved pipeline
+
+        :param pipeline_path: Path to the folder where the pipeline is saved
+        """
+        pipeline_run_path = join(pipeline_path, 'run.json')
+        if not exists(pipeline_run_path):
+            raise ValueError('Can not load pipelines from "%s". File run.json does not exist' % pipeline_path)
+
+        with open(pipeline_run_path) as fin:
+            pipeline_run = json.load(fin)
+
+        if self.ta2 is None:
+            self.dataset = pipeline_run['dataset_path']
+            self.start_ta2()
+
+        folder_dst_path = join(self.output_folder, 'temp', 'loaded_pipelines')
+        copy_folder(pipeline_path, folder_dst_path, True)
+        pipeline_path_container = '/output/temp/loaded_pipelines'
+        id_pipeline = self.ta3.load_solution(pipeline_path_container)
+        pipeline_run['id'] = id_pipeline
+        self.pipelines[id_pipeline] = pipeline_run
+        logger.info('Pipeline id=%s loaded!' % id_pipeline)
 
     def create_pipelineprofiler_inputs(self, test_dataset=None, source_name=None):
         """Create an proper input supported by PipelineProfiler based on the pipelines generated by a TA2 system
@@ -426,6 +457,24 @@ class AutoML:
         logger.info('Inputs for PipelineProfiler created!')
 
         return profiler_inputs
+
+    def create_textanalizer_inputs(self, dataset, text_column, label_column, positive_label=1, negative_label=0):
+        """Create an proper input supported by VisualTextAnalyzer
+
+        :param dataset: Path to dataset.  It supports D3M dataset, and CSV file
+        :param text_column: Name of the column that contains the texts
+        :param label_column: Name of the column that contains the classes
+        :param positive_label: Label for the positive class
+        :param negative_label: Label for the negative class
+        """
+        suffix = split(dataset)[-1]
+
+        if is_d3m_format(dataset, suffix):
+            dataframe = d3mtext_to_dataframe(dataset, text_column)
+        else:
+            dataframe = pd.read_csv(dataset, index_col=False)
+
+        return vis.get_words_entities(dataframe, text_column, label_column, positive_label, negative_label)
 
     def export_pipeline_code(self, pipeline_id, ipython_cell=True):
         """Converts a Pipeline Description to an executable Python script
@@ -521,10 +570,11 @@ class AutoML:
                 TA2_DOCKER_IMAGES[self.ta2_id]
             ]
         )
+
         time.sleep(4)  # Wait for TA2
         while True:
             try:
-                self.ta3 = BasicTA3()
+                self.ta3 = GrpcClient()
                 self.ta3.do_hello()
                 logger.info('%s AutoML initialized!', self.ta2_id)
                 break
@@ -539,8 +589,8 @@ class AutoML:
                         train_ratio, random_seed):
         try:
             pipeline['start_time'] = datetime.datetime.utcnow().isoformat() + 'Z'
-            score_data = self.ta3.do_score(pipeline['id'], train_dataset, problem_path, method, stratified, shuffle,
-                                           folds, train_ratio, random_seed)
+            score_data = self.ta3.score_solutions(pipeline['id'], train_dataset, problem_path, method, stratified, shuffle,
+                                                  folds, train_ratio, random_seed)
             logger.info('Scored pipeline id=%s, %s=%s' % (pipeline['id'], score_data['metric'], score_data['score']))
             pipeline['end_time'] = datetime.datetime.utcnow().isoformat() + 'Z'
             pipeline['score'] = score_data['score']
@@ -564,19 +614,34 @@ class AutoML:
     def plot_leaderboard(self):
         """Plot pipelines' leaderboard
         """
-        return self.leaderboard.style.hide_index()
+        leaderboard_data = []
+        metric = 'metric'
 
-    def plot_summary_dataset(self, dataset):
+        if len(self.pipelines) > 0:
+            sorted_pipelines = sorted(self.pipelines.values(), key=lambda x: x['normalized_score'], reverse=True)
+            metric = sorted_pipelines[0]['metric']
+            for position, pipeline in enumerate(sorted_pipelines, 1):
+                leaderboard_data.append([position, pipeline['id'], pipeline['summary'],  pipeline['score']])
+
+        leaderboard = pd.DataFrame(leaderboard_data, columns=['ranking', 'id', 'summary', metric])
+
+        return leaderboard.style.hide_index()
+
+    def plot_summary_dataset(self, dataset, text_column=None):
         """Plot histograms of the dataset
 
         :param dataset: Path to dataset.  It supports D3M dataset, and CSV file
+        :param text_column: Name of the column that contains the texts. Only needed for D3M dataset that has collections
         """
         suffix = split(dataset)[-1]
 
         if is_d3m_format(dataset, suffix):
-            dataset = join(dataset, 'dataset_%s/tables/learningData.csv' % suffix)
+            if is_d3m_collection(join(dataset, 'dataset_%s' % suffix, 'datasetDoc.json'), 'text'):
+                dataset = d3mtext_to_dataframe(dataset, text_column)
+            else:
+                dataset = join(dataset, 'dataset_%s' % suffix, 'tables', 'learningData.csv')
 
-        plot_metadata(dataset)
+        vis.plot_metadata(dataset)
 
     def plot_comparison_pipelines(self, test_dataset=None, source_name=None, precomputed_pipelines=None):
         """Plot PipelineProfiler visualization
@@ -588,11 +653,11 @@ class AutoML:
         """
         if precomputed_pipelines is None:
             pipelineprofiler_inputs = self.create_pipelineprofiler_inputs(test_dataset, source_name)
-            plot_comparison_pipelines(pipelineprofiler_inputs)
+            vis.plot_comparison_pipelines(pipelineprofiler_inputs)
         else:
-            plot_comparison_pipelines(precomputed_pipelines)
+            vis.plot_comparison_pipelines(precomputed_pipelines)
 
-    def plot_text_analysis(self, dataset, text_column, label_column, positive_label=1, negative_label=0):
+    def plot_text_analysis(self, dataset=None, text_column=None, label_column=None, positive_label=1, negative_label=0, precomputed_data=None):
         """Plot a visualization for text datasets
 
         :param dataset: Path to dataset.  It supports D3M dataset, and CSV file
@@ -600,15 +665,13 @@ class AutoML:
         :param label_column: Name of the column that contains the classes
         :param positive_label: Label for the positive class
         :param negative_label: Label for the negative class
+        :param precomputed_data: If not None, it loads words/named entities previously computed
         """
-        suffix = split(dataset)[-1]
-
-        if is_d3m_format(dataset, suffix):
-            dataframe = d3mtext_to_dataframe(dataset, text_column)
+        if precomputed_data is not None:
+            vis.plot_text_summary(precomputed_data)
         else:
-            dataframe = pd.read_csv(dataset, index_col=False)
-
-        plot_text_summary(dataframe, text_column, label_column, positive_label, negative_label)
+            precomputed_data = self.create_textanalizer_inputs(dataset, text_column, label_column, positive_label, negative_label)
+            vis.plot_text_summary(precomputed_data)
 
     def plot_text_explanation(self, model_id, instance_text, text_column, label_column, num_features=5, top_labels=1):
         """Plot a LIME visualization for model explanation
@@ -622,8 +685,8 @@ class AutoML:
         """
         train_path = join(self.dataset, 'TRAIN')
         artificial_test_path = join(self.output_folder, 'temp', 'dataset_d3mformat', 'TEST')
-        plot_text_explanation(self, train_path, artificial_test_path, model_id, instance_text, text_column,
-                              label_column, num_features, top_labels)
+        vis.plot_text_explanation(self, train_path, artificial_test_path, model_id, instance_text, text_column,
+                                  label_column, num_features, top_labels)
 
     @staticmethod
     def add_new_ta2(ta2_id, docker_image_url):
@@ -635,4 +698,3 @@ class AutoML:
         """
         TA2_DOCKER_IMAGES[ta2_id] = docker_image_url
         logger.info('%s TA2 added!', ta2_id)
-

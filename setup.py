@@ -21,7 +21,7 @@ setuptools.setup(
     ],
     install_requires=[
         'd3m-automl-rpc @ git+https://gitlab.com/datadrivendiscovery/automl-rpc.git@dev-dist-python',
-        'd3m @ git+https://gitlab.com/datadrivendiscovery/d3m.git@devel#egg=d3m',
+        'd3m @ git+https://gitlab.com/datadrivendiscovery/d3m.git@b72cdf5ed55de775b2553a86179fc1db6ba09c09',
         'pandas==1.1.0',
         'numpy==1.18.2',
         'scikit-learn==0.22.2',
