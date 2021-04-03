@@ -12,7 +12,7 @@ systems like H2O and TPOT, to make easier for people to adopt D3M tools.
  
 `d3m-interface` allows data scientists to explore, understand, and build trust on the derived models. This allows them
 to make an informed decision regarding which model to choose, as well as to improve and customize the solution.
-`d3m-interface` supports six D3M AutoML systems: AlphaD3M (NYU), CMU, SRI, TAMU, UC Berkeley and UNCHARTED.
+Through `d3m-interface`, users can run AlphaD3M and :doc:`other D3M AutoML systems <automls_supported>`.
 
 ..  figure:: images/d3m_interface_architecture.png
     :align: center

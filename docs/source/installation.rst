@@ -21,8 +21,8 @@ To install the latest development version (for Linux, Mac and Windows):
     $ pip install git+https://gitlab.com/ViDA-NYU/d3m/d3m_interface.git
 
 
-After the installation on Windows, you need to download manually the Docker image of the AutoML system. You can download
-it for AlphaD3M using:
+After the installation on Windows, you need to download manually the Docker image of the D3M AutoML system. You can
+download it for AlphaD3M using:
 
 ::
 
@@ -31,12 +31,11 @@ it for AlphaD3M using:
 How Docker is Used in D3M Interface
 -----------------------------------
 
-Docker creates containers instead of full-blown, virtual machines. So, everything you need to deploy `d3m-interface`
-will simply run on the Docker engine as a container. We give more details
-`here <https://gitlab.com/ViDA-NYU/d3m/d3m_interface/-/blob/master/d3m_interface/automl_interface.py#L561>`__ about how
+Docker creates containers instead of full-blown virtual machines. So, everything you need to deploy, `d3m-interface`
+will simply run on the Docker engine as a container. You can see
+`here <https://gitlab.com/ViDA-NYU/d3m/d3m_interface/-/blob/master/d3m_interface/automl_interface.py#L561>`__ how
 this container is set up to deploy different AutoML systems.
 
-Note that `d3m-interface` uses the pre-built Docker images (latest version) of the following AutoML systems:
-`AlphaD3M (NYU) <https://gitlab.com/ViDA-NYU/d3m/alphad3m>`__, `CMU <https://gitlab.com/sray/cmu-ta2>`__,
-`SRI <https://github.com/daraghhartnett/sri_tpot>`__, and `TAMU <https://gitlab.com/axolotl1/axolotl>`__, which come
-installed with the most important primitive packages.
+Note that `d3m-interface` uses the pre-built Docker images (latest version) of the D3M AutoML systems. For AlphaD3M, you
+can see `here <https://gitlab.com/ViDA-NYU/d3m/alphad3m/-/blob/devel/Dockerfile>`__ how the Docker image is built.
+For the other D3M AutoML systems, you can find more information :doc:`here <automls_supported>`.
