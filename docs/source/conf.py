@@ -23,7 +23,7 @@ copyright = '2020, New York University'
 author = 'New York University'
 
 # The full version, including alpha/beta/rc tags
-release = '0.0.1'
+release = ''
 master_doc = 'index'
 
 # -- General configuration ---------------------------------------------------
