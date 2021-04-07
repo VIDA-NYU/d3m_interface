@@ -111,8 +111,8 @@ class AutoML:
             end_time = datetime.datetime.utcnow()
             try:
                 pipeline_json = self.ta3.describe_solution(pipeline['id'])
-            except:
-                logger.warning('Pipeline id=%s could not be decoded' % pipeline['id'])
+            except Exception as e:
+                logger.warning('Pipeline id=%s could not be decoded' % pipeline['id'], exc_info=e)
                 continue
             summary_pipeline = self.get_summary_pipeline(pipeline_json)
             search_id = pipeline['search_id']
