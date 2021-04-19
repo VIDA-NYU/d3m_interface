@@ -100,13 +100,13 @@ class AutoML:
         problem_path = join(dataset, 'problem_TRAIN/problemDoc.json')
         start_time = datetime.datetime.utcnow()
         try:
-            pipelines = self.ta3.search_solutions(train_dataset_d3m, problem_path, time_bound, time_bound_run)
+            search_id = self.ta3.search_solutions(train_dataset_d3m, problem_path, time_bound, time_bound_run)
+            pipelines = self.ta3.get_solutions(search_id)
         except KeyboardInterrupt:
             self.ta3.stop_search(search_id)
             raise
 
         jobs = []
-
         for pipeline in pipelines:
             end_time = datetime.datetime.utcnow()
             try:
@@ -115,7 +115,7 @@ class AutoML:
                 logger.warning('Pipeline id=%s could not be decoded' % pipeline['id'], exc_info=e)
                 continue
             summary_pipeline = self.get_summary_pipeline(pipeline_json)
-            search_id = pipeline['search_id']
+            pipeline['search_id'] = search_id
             pipeline['json_representation'] = pipeline_json
             pipeline['summary'] = summary_pipeline
             duration = str(end_time - start_time)

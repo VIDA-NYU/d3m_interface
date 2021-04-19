@@ -41,16 +41,19 @@ class GrpcClient:
             )],
         ))
 
+        return str(search.search_id)
+
+    def get_solutions(self, search_id):
         results = self.core.GetSearchSolutionsResults(
             pb_core.GetSearchSolutionsResultsRequest(
-                search_id=search.search_id,
+                search_id=search_id,
             )
         )
 
         for result in results:
             if result.solution_id:
                 pipeline_id = result.solution_id
-                yield {'id': pipeline_id, 'search_id': str(search.search_id)}
+                yield {'id': pipeline_id}
 
     def score_solutions(self, solution_id, dataset_path, problem_path, method, stratified, shuffle, folds, train_ratio, random_seed):
         problem = Problem.load(problem_uri=fix_uri(problem_path))
