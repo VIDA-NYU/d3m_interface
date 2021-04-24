@@ -17,6 +17,7 @@ from threading import Thread
 from os.path import join, split, exists
 from IPython.core.getipython import get_ipython
 from d3m.metadata.problem import PerformanceMetric
+from d3m.utils import compute_digest
 
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s', stream=sys.stdout)
@@ -417,7 +418,7 @@ class AutoML:
             if pipeline['id'] not in pipeline_ids:
                 pipeline_ids.add(pipeline['id'])
                 if 'digest' not in pipeline['json_representation']:
-                    pipeline['json_representation']['digest'] = pipeline['id']  # TODO: Compute digest
+                    pipeline['json_representation']['digest'] = compute_digest(pipeline['json_representation'])
 
                 pipeline_score = [{'metric': {'metric': pipeline['metric']}, 'value': pipeline['score'],
                                    'normalized': pipeline['normalized_score']}]
@@ -554,7 +555,11 @@ class AutoML:
 
     def start_ta2(self):
         logger.info('Initializing %s AutoML...', self.ta2_id)
-        subprocess.call(['docker', 'stop', 'ta2_container'])
+        process_returncode = 0
+
+        while process_returncode == 0:
+            # Force to stop the docker container
+            process_returncode = subprocess.call(['docker', 'stop', 'ta2_container'])
 
         self.ta2 = subprocess.Popen(
             [
