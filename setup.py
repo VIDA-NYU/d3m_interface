@@ -5,7 +5,7 @@ with open('README.md', 'r') as fh:
 
 setuptools.setup(
     name='d3m_interface',
-    version='0.2.5',
+    version='0.2.6',
     author='Roque Lopez',
     author_email='rlopez@nyu.edu',
     description='Library to use D3M AutoML Systems',
