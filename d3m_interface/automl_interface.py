@@ -303,6 +303,8 @@ class AutoML:
             if pipeline_id not in self.pipelines:
                 raise ValueError('Pipeline id=%s does not exist' % pipeline_id)
             pipeline_json = self.pipelines[pipeline_id]['json_representation']
+        else:
+            raise TypeError("pipeline_id should be a Pipeline or str object")
 
         with open(join(self.output_folder, '%s.json' % pipeline_id), 'w') as fout:
             json.dump(pipeline_json, fout)  # Save temporally the json pipeline
