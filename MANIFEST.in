@@ -1,3 +1,4 @@
 include LICENSE.txt
 include NOTICE.txt
 include README.md
+include d3m_interface/resource/*.json
