@@ -553,16 +553,21 @@ class AutoML:
         logger.info('Ending session...')
         if self.ta2 is not None:
             subprocess.call(['docker', 'stop', 'ta2_container'])
+            self.ta2 = None
 
         logger.info('Session ended!')
 
     def start_ta2(self):
-        logger.info('Initializing %s AutoML...', self.ta2_id)
-        process_returncode = 0
+        if self.ta2 is not None:
+            self.end_session()
 
+        logger.info('Initializing %s AutoML...', self.ta2_id)
+
+        process_returncode = 0
         while process_returncode == 0:
             # Force to stop the docker container
             process_returncode = subprocess.call(['docker', 'stop', 'ta2_container'])
+            time.sleep(2)
 
         self.ta2 = subprocess.Popen(
             [
