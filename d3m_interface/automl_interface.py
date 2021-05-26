@@ -434,8 +434,8 @@ class AutoML:
                     start_time = datetime.datetime.utcnow().isoformat() + 'Z'
                     try:
                         metric, score,  = self.score(pipeline['id'], test_dataset)
-                    except:
-                        logger.warning('Pipeline id=%s could not be scored' % pipeline['id'])
+                    except Exception:
+                        logger.warning('Pipeline id=%s could not be scored' % pipeline['id'], exc_info=True)
                         continue
                     end_time = datetime.datetime.utcnow().isoformat() + 'Z'
                     normalized_score = PerformanceMetric[metric.upper()].normalize(score)
@@ -586,7 +586,7 @@ class AutoML:
                 self.ta3.do_hello()
                 logger.info('%s AutoML initialized!', self.ta2_id)
                 break
-            except:
+            except Exception:
                 if self.ta3.channel is not None:
                     self.ta3.channel.close()
                     self.ta3 = None
