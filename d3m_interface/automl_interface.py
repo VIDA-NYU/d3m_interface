@@ -61,7 +61,6 @@ class DockerRuntime:
                 '-v', '%s:/output' % fix_path_for_docker(output_folder),
                 image,
             ],
-            stderr=subprocess.PIPE,
         )
 
     def run_command(self, args):
@@ -80,6 +79,69 @@ class DockerRuntime:
         subprocess.call(['docker', 'stop', 'ta2_container'])
 
 
+class SingularityRuntime:
+    dataset_in_container = '/input/dataset'
+    output_in_container = '/output'
+
+    def __init__(self, image, dataset, output_folder):
+        process_returncode = 0
+        while process_returncode == 0:
+            # Force to stop the docker container
+            process_returncode = subprocess.call(['singularity', 'instance', 'stop', 'ta2_container'])
+            time.sleep(2)
+
+        logger.info("Creating Singularity instance...")
+        process = subprocess.Popen(
+            [
+                'singularity', 'instance', 'start',
+                '--writable-tmpfs',
+                '--env', 'D3MRUN=ta2ta3',
+                '--env', 'D3MINPUTDIR=/input',
+                '--env', 'D3MOUTPUTDIR=/output',
+                '--env', 'D3MSTATICDIR=/output',  # TODO: Temporal assignment for D3MSTATICDIR env variable
+                '--bind', '%s:/input/dataset/' % dataset,
+                '--bind', '%s:/output' % output_folder,
+                'docker://' + image,
+                'ta2_container',
+            ],
+            stderr=subprocess.PIPE,
+        )
+        _, stderr = process.communicate()
+
+        if process.returncode != 0:
+            raise RuntimeError(stderr.decode())
+
+        logger.info("Instance created, running command...")
+        self.proc = subprocess.Popen(
+            [
+                'singularity', 'run',
+                '--writable-tmpfs',
+                '--env', 'D3MRUN=ta2ta3',
+                '--env', 'D3MINPUTDIR=/input',
+                '--env', 'D3MOUTPUTDIR=/output',
+                '--env', 'D3MSTATICDIR=/output',  # TODO: Temporal assignment for D3MSTATICDIR env variable
+                '--bind', '%s:/input/dataset/' % dataset,
+                '--bind', '%s:/output' % output_folder,
+                'instance://ta2_container',
+            ],
+        )
+
+    def run_command(self, args):
+        cmd = ['singularity', 'exec', 'instance://ta2_container']
+        cmd.extend(args)
+        process = subprocess.Popen(
+            cmd,
+            stderr=subprocess.PIPE,
+        )
+        _, stderr = process.communicate()
+
+        if process.returncode != 0:
+            raise RuntimeError(stderr.decode())
+
+    def close(self):
+        subprocess.call(['singularity', 'instance', 'stop', 'ta2_container'])
+
+
 class AutoML:
 
     def __init__(self, output_folder, ta2_id='AlphaD3M', container_runtime='docker'):
@@ -96,6 +158,8 @@ class AutoML:
         self.output_folder = output_folder
         if container_runtime == 'docker':
             self.container_runtime = DockerRuntime
+        elif container_runtime == 'singularity':
+            self.container_runtime = SingularityRuntime
         else:
             raise ValueError("Unknown container runtime %r" % container_runtime)
         self.ta2_id = ta2_id
