@@ -15,6 +15,7 @@ from d3m_interface.grpc_client import GrpcClient
 from d3m_interface.pipeline import Pipeline
 from threading import Thread
 from os.path import join, split, exists
+from posixpath import join as pjoin
 from IPython.core.getipython import get_ipython
 from d3m.metadata.problem import PerformanceMetric
 from d3m.utils import compute_digest
@@ -97,7 +98,7 @@ class AutoML:
         if platform.system() != 'Windows':
             signal.signal(signal.SIGALRM, lambda signum, frame: self.ta3.stop_search(search_id))
             signal.alarm(time_bound * 60)
-        train_dataset_d3m = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
+        train_dataset_d3m = pjoin(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
         problem_path = join(dataset, 'problem_TRAIN/problemDoc.json')
         start_time = datetime.datetime.utcnow()
         try:
@@ -164,7 +165,7 @@ class AutoML:
                 for id_output in step['outputs']:
                     expose_outputs.append('steps.%d.%s' % (index, id_output['id']))
 
-        train_dataset_d3m = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
+        train_dataset_d3m = pjoin(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
         fitted_pipeline_id, pipeline_step_outputs = self.ta3.train_solution(pipeline_id, train_dataset_d3m, expose_outputs)
 
         for step_id, step_csv_uri in pipeline_step_outputs.items():
@@ -196,8 +197,8 @@ class AutoML:
         """
         suffix = 'TEST'
         dataset_in_container = '/input/dataset/'
-        train_dataset_d3m = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
-        problem_path = join(dataset_in_container, 'TRAIN/problem_TRAIN/problemDoc.json')
+        train_dataset_d3m = pjoin(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
+        problem_path = pjoin(dataset_in_container, 'TRAIN/problem_TRAIN/problemDoc.json')
 
         if not is_d3m_format(test_dataset, suffix):
             dataset_to_d3m(test_dataset, self.output_folder, self.problem_config, suffix)
@@ -208,7 +209,7 @@ class AutoML:
             dataset_in_container = '/output/temp/dataset_d3mformat/'
 
         logger.info('Testing model...')
-        test_dataset_d3m = join(dataset_in_container, 'TEST/dataset_TEST/datasetDoc.json')
+        test_dataset_d3m = pjoin(dataset_in_container, 'TEST/dataset_TEST/datasetDoc.json')
 
         if calculate_confidence:
             # The only way to get the confidence is through the CLI utility, TA3TA2 API doesn't support it
@@ -218,8 +219,8 @@ class AutoML:
             with open(join(self.output_folder, '%s.json' % pipeline_id), 'w') as fout:
                 json.dump(confidence_pipeline, fout)  # Save temporally the json pipeline
 
-            pipeline_path = join('/output/', '%s.json' % pipeline_id)
-            output_csv_path = join('/output/', 'fit_produce_%s.csv' % pipeline_id)
+            pipeline_path = pjoin('/output/', '%s.json' % pipeline_id)
+            output_csv_path = pjoin('/output/', 'fit_produce_%s.csv' % pipeline_id)
 
             process = subprocess.Popen(
                 [
@@ -229,11 +230,11 @@ class AutoML:
                     '--context', 'TESTING',
                     '--random-seed', '0',
                     'fit-produce',
-                    '--pipeline', fix_path_for_docker(pipeline_path),
-                    '--problem', fix_path_for_docker(problem_path),
-                    '--input', fix_path_for_docker(train_dataset_d3m),
-                    '--test-input', fix_path_for_docker(test_dataset_d3m),
-                    '--output', fix_path_for_docker(output_csv_path),
+                    '--pipeline', pipeline_path,
+                    '--problem', problem_path,
+                    '--input', train_dataset_d3m,
+                    '--test-input', test_dataset_d3m,
+                    '--output', output_csv_path,
                 ],
                 stderr=subprocess.PIPE
             )
@@ -306,12 +307,12 @@ class AutoML:
         with open(join(self.output_folder, '%s.json' % pipeline_id), 'w') as fout:
             json.dump(pipeline_json, fout)  # Save temporally the json pipeline
 
-        train_dataset_d3m = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
-        test_dataset_d3m = join(dataset_in_container, 'TEST/dataset_TEST/datasetDoc.json')
-        score_dataset_d3m = join(dataset_in_container, 'SCORE/dataset_SCORE/datasetDoc.json')
-        problem_path = join(dataset_in_container, 'TRAIN/problem_TRAIN/problemDoc.json')
-        pipeline_path = join('/output/', '%s.json' % pipeline_id)
-        output_csv_path = join('/output/', 'fit_score_%s.csv' % pipeline_id)
+        train_dataset_d3m = pjoin(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
+        test_dataset_d3m = pjoin(dataset_in_container, 'TEST/dataset_TEST/datasetDoc.json')
+        score_dataset_d3m = pjoin(dataset_in_container, 'SCORE/dataset_SCORE/datasetDoc.json')
+        problem_path = pjoin(dataset_in_container, 'TRAIN/problem_TRAIN/problemDoc.json')
+        pipeline_path = pjoin('/output/', '%s.json' % pipeline_id)
+        output_csv_path = pjoin('/output/', 'fit_score_%s.csv' % pipeline_id)
 
         #  TODO: Use TA2TA3 API to score
         process = subprocess.Popen(
@@ -322,12 +323,12 @@ class AutoML:
                 '--context', 'TESTING',
                 '--random-seed', '0',
                 'fit-score',
-                '--pipeline', fix_path_for_docker(pipeline_path),
-                '--problem', fix_path_for_docker(problem_path),
-                '--input', fix_path_for_docker(train_dataset_d3m),
-                '--test-input', fix_path_for_docker(test_dataset_d3m),
-                '--score-input', fix_path_for_docker(score_dataset_d3m),
-                '--scores', fix_path_for_docker(output_csv_path),
+                '--pipeline', pipeline_path,
+                '--problem', problem_path,
+                '--input', train_dataset_d3m,
+                '--test-input', test_dataset_d3m,
+                '--score-input', score_dataset_d3m,
+                '--scores', output_csv_path,
             ],
             stderr=subprocess.PIPE
         )
