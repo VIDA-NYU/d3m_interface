@@ -82,17 +82,22 @@ class DockerRuntime:
 
 class AutoML:
 
-    def __init__(self, output_folder, ta2_id='AlphaD3M'):
+    def __init__(self, output_folder, ta2_id='AlphaD3M', container_runtime='docker'):
         """Create/instantiate an AutoML object
 
         :param output_folder: Path to the output directory
         :param ta2_id: AutoML system name. It makes reference to the AutoML docker image. The provided AutoML systems
             are the following: `AlphaD3M, CMU, SRI, TAMU`
+        :param container_runtime: The container runtime to use, either 'docker' or 'singularity'
         """
         if ta2_id not in TA2_DOCKER_IMAGES:
             raise ValueError('Unknown "%s" AutoML, you should choose among: [%s]' % (ta2_id, ', '.join(TA2_DOCKER_IMAGES)))
 
         self.output_folder = output_folder
+        if container_runtime == 'docker':
+            self.container_runtime = DockerRuntime
+        else:
+            raise ValueError("Unknown container runtime %r" % container_runtime)
         self.ta2_id = ta2_id
         self.pipelines = {}
         self.ta2 = None
@@ -587,7 +592,7 @@ class AutoML:
 
         logger.info('Initializing %s AutoML...', self.ta2_id)
 
-        self.ta2 = self.DockerRuntime(
+        self.ta2 = self.container_runtime(
             TA2_DOCKER_IMAGES[self.ta2_id],
             self.dataset,
             self.output_folder,
