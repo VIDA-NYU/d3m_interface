@@ -20,7 +20,7 @@ class Pipeline:
         self.modules.append(module)
 
     def add_parameters(self, parameters):
-        self.parameters.append(parameters)
+        self.parameters.update(parameters)
 
     def add_connection(self, connection):
         self.connections.append(connection)
