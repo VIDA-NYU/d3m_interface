@@ -1,3 +1,4 @@
+import os
 import sys
 import time
 import json
@@ -90,6 +91,7 @@ class SingularityRuntime:
             process_returncode = subprocess.call(['singularity', 'instance', 'stop', 'ta2_container'])
             time.sleep(2)
 
+        os.makedirs(output_folder, exist_ok=True)
         logger.info("Creating Singularity instance...")
         process = subprocess.Popen(
             [
