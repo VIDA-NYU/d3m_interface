@@ -26,7 +26,7 @@ def create_confidence_pipeline(pipeline):
             estimator['index'] = index
         elif is_constructpredictions(step):
             # Add 3 necessary primitives to calculate confidence
-            input_id = int(re.match('steps.(\d+).produce', step['arguments']['inputs']['data']).groups()[0])
+            input_id = int(re.match(r'steps.(\d+).produce', step['arguments']['inputs']['data']).groups()[0])
 
             step_horizontal_concat = {
                 "type": "PRIMITIVE",

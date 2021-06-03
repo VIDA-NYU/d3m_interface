@@ -5,7 +5,7 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 
-class Pipeline():
+class Pipeline:
 
     def __init__(self, origin='export', dataset='dataset'):
         self.id = uuid.uuid4()
@@ -20,7 +20,7 @@ class Pipeline():
         self.modules.append(module)
 
     def add_parameters(self, parameters):
-        self.parameters.append(parameters)
+        self.parameters.update(parameters)
 
     def add_connection(self, connection):
         self.connections.append(connection)
@@ -46,7 +46,7 @@ class Pipeline():
         if module.id not in self.parameters:
             self.parameters[module.id] = {}
         for hp in hyperparams:
-            if isinstance(hyperparams[hp],dict):
+            if isinstance(hyperparams[hp], dict):
                 self.parameters[module.id][hp] = hyperparams[hp]
             else:
                 self.parameters[module.id][hp] = {'type': 'VALUE', 'data': hyperparams[hp]}
@@ -60,7 +60,7 @@ class Pipeline():
     __str__ = __repr__
 
 
-class PipelineModule():
+class PipelineModule:
     def __init__(self, package, version, name):
         self.id = uuid.uuid4()
         self.package = package
@@ -72,7 +72,7 @@ class PipelineModule():
         self.connections_to.append(connection)
 
 
-class PipelineConnection():
+class PipelineConnection:
     def __init__(self, from_module_id, from_output_name, to_module_id, to_input_name):
         self.from_module_id = from_module_id
         self.from_output_name = from_output_name
@@ -80,7 +80,7 @@ class PipelineConnection():
         self.to_input_name = to_input_name
 
 
-class PipelineParameter():
+class PipelineParameter:
     def __init__(self, module_id, name, value):
         self.module_id = module_id
         self.name = name

@@ -215,7 +215,7 @@ def _add_step(steps, modules, params, module_to_step, mod):
                     inputs[conn.to_input_name].append('%s.%s' % (step, conn.from_output_name))
             else:
                 inputs[conn.to_input_name] = '%s.%s' % (step, conn.from_output_name)
-    #TODO load metadata from primitives
+    # TODO load metadata from primitives
     primitive_desc = {
         'id': mod.id,
         'version': mod.version,

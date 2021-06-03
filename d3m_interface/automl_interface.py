@@ -1,3 +1,4 @@
+import os
 import sys
 import time
 import json
@@ -15,6 +16,7 @@ from d3m_interface.grpc_client import GrpcClient
 from d3m_interface.pipeline import Pipeline
 from threading import Thread
 from os.path import join, split, exists
+from posixpath import join as pjoin
 from IPython.core.getipython import get_ipython
 from d3m.metadata.problem import PerformanceMetric
 from d3m.utils import compute_digest
@@ -36,19 +38,132 @@ IGNORE_SUMMARY_PRIMITIVES = {'d3m.primitives.data_transformation.construct_predi
                              'd3m.primitives.data_transformation.column_parser.Common'}
 
 
+class DockerRuntime:
+    dataset_in_container = '/input/dataset'
+    output_in_container = '/output'
+
+    def __init__(self, image, dataset, output_folder):
+        process_returncode = 0
+        while process_returncode == 0:
+            # Force to stop the docker container
+            process_returncode = subprocess.call(['docker', 'stop', 'ta2_container'])
+            time.sleep(2)
+
+        self.proc = subprocess.Popen(
+            [
+                'docker', 'run', '--rm',
+                '--name', 'ta2_container',
+                '-p', '45042:45042',
+                '-e', 'D3MRUN=ta2ta3',
+                '-e', 'D3MINPUTDIR=/input',
+                '-e', 'D3MOUTPUTDIR=/output',
+                '-e', 'D3MSTATICDIR=/output',  # TODO: Temporal assignment for D3MSTATICDIR env variable
+                '-v', '%s:/input/dataset/' % fix_path_for_docker(dataset),
+                '-v', '%s:/output' % fix_path_for_docker(output_folder),
+                image,
+            ],
+        )
+
+    def run_command(self, args):
+        cmd = ['docker', 'exec', 'ta2_container']
+        cmd.extend(args)
+        process = subprocess.Popen(
+            cmd,
+            stderr=subprocess.PIPE,
+        )
+        _, stderr = process.communicate()
+
+        if process.returncode != 0:
+            raise RuntimeError(stderr.decode())
+
+    def close(self):
+        subprocess.call(['docker', 'stop', 'ta2_container'])
+
+
+class SingularityRuntime:
+    dataset_in_container = '/input/dataset'
+    output_in_container = '/output'
+
+    def __init__(self, image, dataset, output_folder):
+        process_returncode = 0
+        while process_returncode == 0:
+            # Force to stop the docker container
+            process_returncode = subprocess.call(['singularity', 'instance', 'stop', 'ta2_container'])
+            time.sleep(2)
+
+        os.makedirs(output_folder, exist_ok=True)
+        logger.info("Creating Singularity instance...")
+        process = subprocess.Popen(
+            [
+                'singularity', 'instance', 'start',
+                '--writable-tmpfs',
+                '--env', 'D3MRUN=ta2ta3',
+                '--env', 'D3MINPUTDIR=/input',
+                '--env', 'D3MOUTPUTDIR=/output',
+                '--env', 'D3MSTATICDIR=/output',  # TODO: Temporal assignment for D3MSTATICDIR env variable
+                '--bind', '%s:/input/dataset/' % dataset,
+                '--bind', '%s:/output' % output_folder,
+                'docker://' + image,
+                'ta2_container',
+            ],
+            stderr=subprocess.PIPE,
+        )
+        _, stderr = process.communicate()
+
+        if process.returncode != 0:
+            raise RuntimeError(stderr.decode())
+
+        logger.info("Instance created, running command...")
+        self.proc = subprocess.Popen(
+            [
+                'singularity', 'run',
+                '--writable-tmpfs',
+                '--env', 'D3MRUN=ta2ta3',
+                '--env', 'D3MINPUTDIR=/input',
+                '--env', 'D3MOUTPUTDIR=/output',
+                '--env', 'D3MSTATICDIR=/output',  # TODO: Temporal assignment for D3MSTATICDIR env variable
+                '--bind', '%s:/input/dataset/' % dataset,
+                '--bind', '%s:/output' % output_folder,
+                'instance://ta2_container',
+            ],
+        )
+
+    def run_command(self, args):
+        cmd = ['singularity', 'exec', 'instance://ta2_container']
+        cmd.extend(args)
+        process = subprocess.Popen(
+            cmd,
+            stderr=subprocess.PIPE,
+        )
+        _, stderr = process.communicate()
+
+        if process.returncode != 0:
+            raise RuntimeError(stderr.decode())
+
+    def close(self):
+        subprocess.call(['singularity', 'instance', 'stop', 'ta2_container'])
+
+
 class AutoML:
 
-    def __init__(self, output_folder, ta2_id='AlphaD3M'):
+    def __init__(self, output_folder, ta2_id='AlphaD3M', container_runtime='docker'):
         """Create/instantiate an AutoML object
 
         :param output_folder: Path to the output directory
         :param ta2_id: AutoML system name. It makes reference to the AutoML docker image. The provided AutoML systems
             are the following: `AlphaD3M, CMU, SRI, TAMU`
+        :param container_runtime: The container runtime to use, either 'docker' or 'singularity'
         """
         if ta2_id not in TA2_DOCKER_IMAGES:
             raise ValueError('Unknown "%s" AutoML, you should choose among: [%s]' % (ta2_id, ', '.join(TA2_DOCKER_IMAGES)))
 
         self.output_folder = output_folder
+        if container_runtime == 'docker':
+            self.container_runtime = DockerRuntime
+        elif container_runtime == 'singularity':
+            self.container_runtime = SingularityRuntime
+        else:
+            raise ValueError("Unknown container runtime %r" % container_runtime)
         self.ta2_id = ta2_id
         self.pipelines = {}
         self.ta2 = None
@@ -84,7 +199,6 @@ class AutoML:
         :param kwargs: Different arguments for problem's settings (e.g. pos_label for binary problems using F1)
         """
         suffix = 'TRAIN'
-        dataset_in_container = '/input/dataset/'
 
         if not is_d3m_format(dataset, suffix):
             self.problem_config = {'target_column': target, 'metric': metric, 'task_keywords': task_keywords,
@@ -97,7 +211,7 @@ class AutoML:
         if platform.system() != 'Windows':
             signal.signal(signal.SIGALRM, lambda signum, frame: self.ta3.stop_search(search_id))
             signal.alarm(time_bound * 60)
-        train_dataset_d3m = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
+        train_dataset_d3m = pjoin(self.ta2.dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
         problem_path = join(dataset, 'problem_TRAIN/problemDoc.json')
         start_time = datetime.datetime.utcnow()
         try:
@@ -150,7 +264,6 @@ class AutoML:
         :returns: An id of the fitted pipeline with/without the pipeline step outputs
         """
         # TODO: It should receive the path to the train dataset as an optional parameter
-        dataset_in_container = '/input/dataset/'
 
         if pipeline_id not in self.pipelines:
             raise ValueError('Pipeline id=%s does not exist' % pipeline_id)
@@ -164,7 +277,7 @@ class AutoML:
                 for id_output in step['outputs']:
                     expose_outputs.append('steps.%d.%s' % (index, id_output['id']))
 
-        train_dataset_d3m = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
+        train_dataset_d3m = pjoin(self.ta2.dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
         fitted_pipeline_id, pipeline_step_outputs = self.ta3.train_solution(pipeline_id, train_dataset_d3m, expose_outputs)
 
         for step_id, step_csv_uri in pipeline_step_outputs.items():
@@ -195,9 +308,9 @@ class AutoML:
         :returns: A dataframe that contains the predictions with/without the pipeline step outputs
         """
         suffix = 'TEST'
-        dataset_in_container = '/input/dataset/'
-        train_dataset_d3m = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
-        problem_path = join(dataset_in_container, 'TRAIN/problem_TRAIN/problemDoc.json')
+        dataset_in_container = self.ta2.dataset_in_container
+        train_dataset_d3m = pjoin(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
+        problem_path = pjoin(dataset_in_container, 'TRAIN/problem_TRAIN/problemDoc.json')
 
         if not is_d3m_format(test_dataset, suffix):
             dataset_to_d3m(test_dataset, self.output_folder, self.problem_config, suffix)
@@ -205,10 +318,10 @@ class AutoML:
             destination_path = join(self.output_folder, 'temp', 'dataset_d3mformat', 'TEST')
             if test_dataset != destination_path:
                 copy_folder(test_dataset, destination_path, True)
-            dataset_in_container = '/output/temp/dataset_d3mformat/'
+            dataset_in_container = pjoin(self.ta2.output_in_container,  'temp', 'dataset_d3mformat')
 
         logger.info('Testing model...')
-        test_dataset_d3m = join(dataset_in_container, 'TEST/dataset_TEST/datasetDoc.json')
+        test_dataset_d3m = pjoin(dataset_in_container, 'TEST/dataset_TEST/datasetDoc.json')
 
         if calculate_confidence:
             # The only way to get the confidence is through the CLI utility, TA3TA2 API doesn't support it
@@ -218,29 +331,21 @@ class AutoML:
             with open(join(self.output_folder, '%s.json' % pipeline_id), 'w') as fout:
                 json.dump(confidence_pipeline, fout)  # Save temporally the json pipeline
 
-            pipeline_path = join('/output/', '%s.json' % pipeline_id)
-            output_csv_path = join('/output/', 'fit_produce_%s.csv' % pipeline_id)
+            pipeline_path = pjoin(self.ta2.output_in_container, '%s.json' % pipeline_id)
+            output_csv_path = pjoin(self.ta2.output_in_container, 'fit_produce_%s.csv' % pipeline_id)
 
-            process = subprocess.Popen(
-                [
-                    'docker', 'exec', 'ta2_container',
-                    'python3', '-m', 'd3m',
-                    'runtime',
-                    '--context', 'TESTING',
-                    '--random-seed', '0',
-                    'fit-produce',
-                    '--pipeline', fix_path_for_docker(pipeline_path),
-                    '--problem', fix_path_for_docker(problem_path),
-                    '--input', fix_path_for_docker(train_dataset_d3m),
-                    '--test-input', fix_path_for_docker(test_dataset_d3m),
-                    '--output', fix_path_for_docker(output_csv_path),
-                ],
-                stderr=subprocess.PIPE
-            )
-            _, stderr = process.communicate()
-
-            if process.returncode != 0:
-                raise RuntimeError(stderr.decode())
+            self.ta2.run_command([
+                'python3', '-m', 'd3m',
+                'runtime',
+                '--context', 'TESTING',
+                '--random-seed', '0',
+                'fit-produce',
+                '--pipeline', pipeline_path,
+                '--problem', problem_path,
+                '--input', train_dataset_d3m,
+                '--test-input', test_dataset_d3m,
+                '--output', output_csv_path,
+            ])
 
             result_path = join(self.output_folder, 'fit_produce_%s.csv' % pipeline_id)
             predictions = pd.read_csv(result_path)
@@ -288,7 +393,6 @@ class AutoML:
         :returns: A tuple holding metric name and score value
         """
         suffix = 'SCORE'
-        dataset_in_container = '/input/dataset/'
 
         if not is_d3m_format(test_dataset, suffix):
             # D3M format needs TEST and SCORE directories
@@ -302,39 +406,33 @@ class AutoML:
             if pipeline_id not in self.pipelines:
                 raise ValueError('Pipeline id=%s does not exist' % pipeline_id)
             pipeline_json = self.pipelines[pipeline_id]['json_representation']
+        else:
+            raise TypeError("pipeline_id should be a Pipeline or str object")
 
         with open(join(self.output_folder, '%s.json' % pipeline_id), 'w') as fout:
             json.dump(pipeline_json, fout)  # Save temporally the json pipeline
 
-        train_dataset_d3m = join(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
-        test_dataset_d3m = join(dataset_in_container, 'TEST/dataset_TEST/datasetDoc.json')
-        score_dataset_d3m = join(dataset_in_container, 'SCORE/dataset_SCORE/datasetDoc.json')
-        problem_path = join(dataset_in_container, 'TRAIN/problem_TRAIN/problemDoc.json')
-        pipeline_path = join('/output/', '%s.json' % pipeline_id)
-        output_csv_path = join('/output/', 'fit_score_%s.csv' % pipeline_id)
+        train_dataset_d3m = pjoin(self.ta2.dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
+        test_dataset_d3m = pjoin(self.ta2.dataset_in_container, 'TEST/dataset_TEST/datasetDoc.json')
+        score_dataset_d3m = pjoin(self.ta2.dataset_in_container, 'SCORE/dataset_SCORE/datasetDoc.json')
+        problem_path = pjoin(self.ta2.dataset_in_container, 'TRAIN/problem_TRAIN/problemDoc.json')
+        pipeline_path = pjoin(self.ta2.output_in_container, '%s.json' % pipeline_id)
+        output_csv_path = pjoin(self.ta2.output_in_container, 'fit_score_%s.csv' % pipeline_id)
 
-        #  TODO: Use TA2TA3 API to score
-        process = subprocess.Popen(
-            [
-                'docker', 'exec', 'ta2_container',
-                'python3', '-m', 'd3m',
-                'runtime',
-                '--context', 'TESTING',
-                '--random-seed', '0',
-                'fit-score',
-                '--pipeline', fix_path_for_docker(pipeline_path),
-                '--problem', fix_path_for_docker(problem_path),
-                '--input', fix_path_for_docker(train_dataset_d3m),
-                '--test-input', fix_path_for_docker(test_dataset_d3m),
-                '--score-input', fix_path_for_docker(score_dataset_d3m),
-                '--scores', fix_path_for_docker(output_csv_path),
-            ],
-            stderr=subprocess.PIPE
-        )
-        _, stderr = process.communicate()
-
-        if process.returncode != 0:
-            raise RuntimeError(stderr.decode())
+        # TODO: Use TA2TA3 API to score
+        self.ta2.run_command([
+            'python3', '-m', 'd3m',
+            'runtime',
+            '--context', 'TESTING',
+            '--random-seed', '0',
+            'fit-score',
+            '--pipeline', pipeline_path,
+            '--problem', problem_path,
+            '--input', train_dataset_d3m,
+            '--test-input', test_dataset_d3m,
+            '--score-input', score_dataset_d3m,
+            '--scores', output_csv_path,
+        ])
 
         result_path = join(self.output_folder, 'fit_score_%s.csv' % pipeline_id)
         df = pd.read_csv(result_path)
@@ -391,7 +489,7 @@ class AutoML:
 
         folder_dst_path = join(self.output_folder, 'temp', 'loaded_pipelines')
         copy_folder(pipeline_path, folder_dst_path, True)
-        pipeline_path_container = '/output/temp/loaded_pipelines'
+        pipeline_path_container = pjoin(self.ta2.output_in_container, 'temp', 'loaded_pipelines')
         id_pipeline = self.ta3.load_solution(pipeline_path_container)
         pipeline_run['id'] = id_pipeline
         self.pipelines[id_pipeline] = pipeline_run
@@ -431,8 +529,8 @@ class AutoML:
                     start_time = datetime.datetime.utcnow().isoformat() + 'Z'
                     try:
                         metric, score,  = self.score(pipeline['id'], test_dataset)
-                    except:
-                        logger.warning('Pipeline id=%s could not be scored' % pipeline['id'])
+                    except Exception:
+                        logger.warning('Pipeline id=%s could not be scored' % pipeline['id'], exc_info=True)
                         continue
                     end_time = datetime.datetime.utcnow().isoformat() + 'Z'
                     normalized_score = PerformanceMetric[metric.upper()].normalize(score)
@@ -549,31 +647,21 @@ class AutoML:
         """
         logger.info('Ending session...')
         if self.ta2 is not None:
-            subprocess.call(['docker', 'stop', 'ta2_container'])
+            self.ta2.close()
+            self.ta2 = None
 
         logger.info('Session ended!')
 
     def start_ta2(self):
+        if self.ta2 is not None:
+            self.end_session()
+
         logger.info('Initializing %s AutoML...', self.ta2_id)
-        process_returncode = 0
 
-        while process_returncode == 0:
-            # Force to stop the docker container
-            process_returncode = subprocess.call(['docker', 'stop', 'ta2_container'])
-
-        self.ta2 = subprocess.Popen(
-            [
-                'docker', 'run', '--rm',
-                '--name', 'ta2_container',
-                '-p', '45042:45042',
-                '-e', 'D3MRUN=ta2ta3',
-                '-e', 'D3MINPUTDIR=/input',
-                '-e', 'D3MOUTPUTDIR=/output',
-                '-e', 'D3MSTATICDIR=/output',  # TODO: Temporal assignment for D3MSTATICDIR env variable
-                '-v', '%s:/input/dataset/' % fix_path_for_docker(self.dataset),
-                '-v', '%s:/output' % fix_path_for_docker(self.output_folder),
-                TA2_DOCKER_IMAGES[self.ta2_id]
-            ]
+        self.ta2 = self.container_runtime(
+            TA2_DOCKER_IMAGES[self.ta2_id],
+            self.dataset,
+            self.output_folder,
         )
 
         time.sleep(4)  # Wait for TA2
@@ -583,7 +671,7 @@ class AutoML:
                 self.ta3.do_hello()
                 logger.info('%s AutoML initialized!', self.ta2_id)
                 break
-            except:
+            except Exception:
                 if self.ta3.channel is not None:
                     self.ta3.channel.close()
                     self.ta3 = None
