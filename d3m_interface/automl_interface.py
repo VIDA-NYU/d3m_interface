@@ -49,6 +49,7 @@ class DockerRuntime:
             process_returncode = subprocess.call(['docker', 'stop', 'ta2_container'])
             time.sleep(2)
 
+        logger.info("Creating Docker container...")
         self.proc = subprocess.Popen(
             [
                 'docker', 'run', '--rm',
@@ -665,6 +666,7 @@ class AutoML:
         )
 
         time.sleep(4)  # Wait for TA2
+        logger.info("Connecting via gRPC to localhost:45042...")
         while True:
             try:
                 self.ta3 = GrpcClient()
