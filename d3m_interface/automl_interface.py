@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import time
 import json
@@ -666,10 +667,19 @@ class AutoML:
         )
 
         time.sleep(4)  # Wait for TA2
-        logger.info("Connecting via gRPC to localhost:45042...")
+
+        host = 'localhost'
+        if os.environ.get('DOCKER_HOST'):
+            m = re.match('tcp://([^:/]*):[0-9]+', os.environ['DOCKER_HOST'])
+            if m is not None:
+                host = m.group(1)
+            else:
+                logger.warning("Can't understand DOCKER_HOST")
+
+        logger.info("Connecting via gRPC to %s:45042...", host)
         while True:
             try:
-                self.ta3 = GrpcClient()
+                self.ta3 = GrpcClient(host)
                 self.ta3.do_hello()
                 logger.info('%s AutoML initialized!', self.ta2_id)
                 break
