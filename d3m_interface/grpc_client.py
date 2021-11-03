@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 
 
 class GrpcClient:
-    def __init__(self):
-        self.channel = grpc.insecure_channel('localhost:45042')
+    def __init__(self, host='localhost', port=45042):
+        self.channel = grpc.insecure_channel('%s:%d' % (host, port))
         self.core = pb_core_grpc.CoreStub(self.channel)
 
     def do_hello(self):

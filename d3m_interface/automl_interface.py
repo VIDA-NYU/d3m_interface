@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import time
 import json
@@ -42,7 +43,7 @@ class DockerRuntime:
     dataset_in_container = '/input/dataset'
     output_in_container = '/output'
 
-    def __init__(self, image, dataset, output_folder):
+    def __init__(self, image, dataset, output_folder, port=45042):
         process_returncode = 0
         while process_returncode == 0:
             # Force to stop the docker container
@@ -54,7 +55,7 @@ class DockerRuntime:
             [
                 'docker', 'run', '--rm',
                 '--name', 'ta2_container',
-                '-p', '45042:45042',
+                '-p', '%d:45042' % port,
                 '-e', 'D3MRUN=ta2ta3',
                 '-e', 'D3MINPUTDIR=/input',
                 '-e', 'D3MOUTPUTDIR=/output',
@@ -85,7 +86,13 @@ class SingularityRuntime:
     dataset_in_container = '/input/dataset'
     output_in_container = '/output'
 
-    def __init__(self, image, dataset, output_folder):
+    def __init__(self, image, dataset, output_folder, port=45042):
+        if port != 45042:
+            raise ValueError(
+                "There is currently no way to change the port used by the "
+                + "AutoML system when using Singularity"
+            )
+
         process_returncode = 0
         while process_returncode == 0:
             # Force to stop the docker container
@@ -146,8 +153,7 @@ class SingularityRuntime:
 
 
 class AutoML:
-
-    def __init__(self, output_folder, ta2_id='AlphaD3M', container_runtime='docker'):
+    def __init__(self, output_folder, ta2_id='AlphaD3M', container_runtime='docker', grpc_port=45042):
         """Create/instantiate an AutoML object
 
         :param output_folder: Path to the output directory
@@ -171,6 +177,7 @@ class AutoML:
         self.ta3 = None
         self.dataset = None
         self.problem_config = None
+        self.port = grpc_port
 
     def search_pipelines(self, dataset, time_bound, time_bound_run=5, target=None, metric=None, task_keywords=None,
                          method='holdout', stratified=True, shuffle=True, folds=10, train_ratio=0.70, random_seed=0,
@@ -663,13 +670,23 @@ class AutoML:
             TA2_DOCKER_IMAGES[self.ta2_id],
             self.dataset,
             self.output_folder,
+            self.port,
         )
 
         time.sleep(4)  # Wait for TA2
-        logger.info("Connecting via gRPC to localhost:45042...")
+
+        host = 'localhost'
+        if os.environ.get('DOCKER_HOST'):
+            m = re.match('tcp://([^:/]*):[0-9]+', os.environ['DOCKER_HOST'])
+            if m is not None:
+                host = m.group(1)
+            else:
+                logger.warning("Can't understand DOCKER_HOST")
+
+        logger.info("Connecting via gRPC to %s:%d...", host, self.port)
         while True:
             try:
-                self.ta3 = GrpcClient()
+                self.ta3 = GrpcClient(host, self.port)
                 self.ta3.do_hello()
                 logger.info('%s AutoML initialized!', self.ta2_id)
                 break
