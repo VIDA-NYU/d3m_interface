@@ -152,6 +152,44 @@ class SingularityRuntime:
         subprocess.call(['singularity', 'instance', 'stop', 'ta2_container'])
 
 
+class LocalRuntime:
+    def __init__(self, image, dataset, output_folder, port=45042):
+        if port != 45042:
+            raise ValueError(
+                "There is currently no way to change the port used by the "
+                + "AutoML system when using local execution"
+            )
+
+        self.dataset_in_container = dataset
+        self.output_in_container = output_folder
+
+        os.makedirs(output_folder, exist_ok=True)
+        logger.info("Starting process...")
+        self.proc = subprocess.Popen(
+            ['eval.sh'],
+            env=dict(
+                os.environ,
+                D3MRUN='ta2ta3',
+                D3MINPUTDIR='/input',
+                D3MOUTPUTDIR='/output',
+                D3MSTATICDIR='/output',  # TODO: Temporal assignment for D3MSTATICDIR env variable
+            ),
+        )
+
+    def run_command(self, args):
+        process = subprocess.Popen(args, stderr=subprocess.PIPE)
+        _, stderr = process.communicate()
+
+        if process.returncode != 0:
+            raise RuntimeError(stderr.decode())
+
+    def close(self):
+        self.proc.terminate()
+        if self.proc.wait(10) is None:
+            self.proc.kill()
+        self.proc = None
+
+
 class AutoML:
     def __init__(self, output_folder, ta2_id='AlphaD3M', container_runtime='docker', grpc_port=45042):
         """Create/instantiate an AutoML object
@@ -169,6 +207,8 @@ class AutoML:
             self.container_runtime = DockerRuntime
         elif container_runtime == 'singularity':
             self.container_runtime = SingularityRuntime
+        elif container_runtime == 'local':
+            self.container_runtime = LocalRuntime
         else:
             raise ValueError("Unknown container runtime %r" % container_runtime)
         self.ta2_id = ta2_id
