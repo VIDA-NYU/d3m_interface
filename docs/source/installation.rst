@@ -18,7 +18,7 @@ To install the latest development version (for Linux, Mac and Windows):
 
 ::
 
-    $ pip install git+https://gitlab.com/ViDA-NYU/d3m/d3m_interface.git
+    $ pip install git+https://gitlab.com/ViDA-NYU/d3m/d3m_interface.git@devel
 
 
 After the installation on Windows, you need to download manually the Docker image of the D3M AutoML system. You can
@@ -26,7 +26,7 @@ download it for AlphaD3M using:
 
 ::
 
-    $ docker pull registry.gitlab.com/vida-nyu/d3m/alphad3m:latest
+    $ docker pull registry.gitlab.com/vida-nyu/d3m/alphad3m:master
 
 How Docker is Used in D3M Interface
 -----------------------------------
@@ -37,5 +37,5 @@ will simply run on the Docker engine as a container. You can see
 this container is set up to deploy different AutoML systems.
 
 Note that `d3m-interface` uses the pre-built Docker images (latest version) of the D3M AutoML systems. For AlphaD3M, you
-can see `here <https://gitlab.com/ViDA-NYU/d3m/alphad3m/-/blob/devel/Dockerfile>`__ how the Docker image is built.
+can see `here <https://gitlab.com/ViDA-NYU/d3m/alphad3m/-/blob/master/Dockerfile>`__ how the Docker image is built.
 For the other D3M AutoML systems, you can find more information :doc:`here <automls_supported>`.
