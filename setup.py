@@ -20,8 +20,8 @@ setuptools.setup(
         'Operating System :: OS Independent',
     ],
     install_requires=[
-        'd3m-automl-rpc @ git+https://gitlab.com/datadrivendiscovery/automl-rpc.git@dev-dist-python',
-        'd3m @ git+https://gitlab.com/datadrivendiscovery/d3m.git@devel#egg=d3m',
+        'd3m==2020.11.3',
+        'd3m-automl-rpc==1.0.0',
         'pandas==1.1.0',
         'numpy==1.18.2',
         'scikit-learn==0.22.2',
