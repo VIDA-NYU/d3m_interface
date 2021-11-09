@@ -30,7 +30,6 @@ setuptools.setup(
         'datamart_profiler',
         'data-profile-viewer>=0.2,<3',
         'visual-text-explorer>=0.1,<2',
-        'dataclasses>=0.7,<0.8',
     ],
     python_requires='>=3.6',
     include_package_data=True,
