@@ -10,7 +10,7 @@ if __name__ == '__main__':
     notebook_file, = sys.argv[1:]
 
     # Read notebook
-    with open('examples/using_d3m_datasets.ci.ipynb') as fp:
+    with open(notebook_file) as fp:
         nb = nbformat.read(fp, as_version=4)
 
     # Insert a cell that sets up logging (will only work on POSIX)
@@ -25,5 +25,5 @@ if __name__ == '__main__':
     }))
 
     # Execute the notebook
-    ep = nbconvert.preprocessors.ExecutePreprocessor(timeout=1800, kernel_name='python3')
+    ep = nbconvert.preprocessors.ExecutePreprocessor(timeout=3600, kernel_name='python3')
     ep.preprocess(nb, {'metadata': {'path': os.getcwd()}})
