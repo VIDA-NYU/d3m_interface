@@ -27,10 +27,8 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s', str
 logger = logging.getLogger(__name__)
 
 
-TA2_DOCKER_IMAGES = {'AlphaD3M': 'registry.gitlab.com/vida-nyu/d3m/alphad3m:devel',
-                     'CMU': 'registry.gitlab.com/sray/cmu-ta2:latest',
-                     'SRI': 'registry.gitlab.com/daraghhartnett/autoflow:latest',
-                     'TAMU': 'dmartinez05/tamuta2:latest'}
+AUTOML_DOCKER_IMAGES = {'AlphaD3M': 'registry.gitlab.com/vida-nyu/d3m/alphad3m:devel',
+                        'CMU': 'registry.gitlab.com/sray/cmu-ta2:latest'}
 
 IGNORE_SUMMARY_PRIMITIVES = {'d3m.primitives.data_transformation.construct_predictions.Common',
                              'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
@@ -191,16 +189,16 @@ class LocalRuntime:
 
 
 class AutoML:
-    def __init__(self, output_folder, ta2_id='AlphaD3M', container_runtime='docker', grpc_port=45042):
+    def __init__(self, output_folder, automl_id='AlphaD3M', container_runtime='docker', grpc_port=45042):
         """Create/instantiate an AutoML object
 
         :param output_folder: Path to the output directory
-        :param ta2_id: AutoML system name. It makes reference to the AutoML docker image. The provided AutoML systems
+        :param automl_id: AutoML system name. It makes reference to the AutoML docker image. The provided AutoML systems
             are the following: `AlphaD3M, CMU, SRI, TAMU`
         :param container_runtime: The container runtime to use, either 'docker' or 'singularity'
         """
-        if ta2_id not in TA2_DOCKER_IMAGES:
-            raise ValueError('Unknown "%s" AutoML, you should choose among: [%s]' % (ta2_id, ', '.join(TA2_DOCKER_IMAGES)))
+        if automl_id not in AUTOML_DOCKER_IMAGES:
+            raise ValueError('Unknown "%s" AutoML, you should choose among: [%s]' % (automl_id, ', '.join(AUTOML_DOCKER_IMAGES)))
 
         self.output_folder = output_folder
         if container_runtime == 'docker':
@@ -211,7 +209,7 @@ class AutoML:
             self.container_runtime = LocalRuntime
         else:
             raise ValueError("Unknown container runtime %r" % container_runtime)
-        self.ta2_id = ta2_id
+        self.automl_id = automl_id
         self.pipelines = {}
         self.ta2 = None
         self.ta3 = None
@@ -221,13 +219,13 @@ class AutoML:
 
     def search_pipelines(self, dataset, time_bound, time_bound_run=5, target=None, metric=None, task_keywords=None,
                          method='holdout', stratified=True, shuffle=True, folds=10, train_ratio=0.70, random_seed=0,
-                         **kwargs):
+                         exclude_primitives=None, include_primitives=None, **kwargs):
         """Perform the search of pipelines
 
         :param dataset: Path to dataset. It supports D3M dataset, CSV file, OpenML, and Sklearn datasets
         :param time_bound: Limit time in minutes to perform the search
         :param time_bound_run: Limit time in minutes to score a pipeline
-        :param target: Column name of the potential target variable for a problem.
+        :param target: Column name of the potential target variable for a problem
         :param metric: The provided metrics are the following: `hammingLoss, accuracy, objectDetectionAP,
             rocAucMicro, f1Macro, meanSquaredError, f1, jaccardSimilarityScore, normalizedMutualInformation, rocAuc,
             f1Micro, hitsAtK, meanAbsoluteError, rocAucMacro, rSquared, recall, meanReciprocalRank, precision,
@@ -244,6 +242,10 @@ class AutoML:
         :param folds: the seed used by the random number generator
         :param train_ratio: Represent the proportion of the dataset to include in the train split
         :param random_seed: The number seed used by the random generator
+        :param exclude_primitives: List of primitive's names to be excluded in the search space. If None, all the
+            primitives will be used in the search
+        :param include_primitives: List of primitive's names to be included in the  search space. If None, all the
+            primitives will be used in the search
         :param kwargs: Different arguments for problem's settings (e.g. pos_label for binary problems using F1)
         """
         suffix = 'TRAIN'
@@ -254,7 +256,8 @@ class AutoML:
             dataset = dataset_to_d3m(dataset, self.output_folder, self.problem_config, suffix)
 
         self.dataset = split(dataset)[0]
-        self.start_ta2()
+        self.start_automl()
+
         search_id = None
         if platform.system() != 'Windows':
             signal.signal(signal.SIGALRM, lambda signum, frame: self.ta3.stop_search(search_id))
@@ -262,8 +265,11 @@ class AutoML:
         train_dataset_d3m = pjoin(self.ta2.dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
         problem_path = join(dataset, 'problem_TRAIN/problemDoc.json')
         start_time = datetime.datetime.utcnow()
+
+        automl_hyperparameters = {'exclude_primitives': exclude_primitives, 'include_primitives': include_primitives}
         try:
-            search_id = self.ta3.search_solutions(train_dataset_d3m, problem_path, time_bound, time_bound_run)
+            search_id = self.ta3.search_solutions(train_dataset_d3m, problem_path, time_bound, time_bound_run,
+                                                  automl_hyperparameters)
             pipelines = self.ta3.get_solutions(search_id)
         except KeyboardInterrupt:
             self.ta3.stop_search(search_id)
@@ -533,7 +539,7 @@ class AutoML:
 
         if self.ta2 is None:
             self.dataset = pipeline_run['dataset_path']
-            self.start_ta2()
+            self.start_automl()
 
         folder_dst_path = join(self.output_folder, 'temp', 'loaded_pipelines')
         copy_folder(pipeline_path, folder_dst_path, True)
@@ -543,19 +549,35 @@ class AutoML:
         self.pipelines[id_pipeline] = pipeline_run
         logger.info('Pipeline id=%s loaded!' % id_pipeline)
 
+    def get_best_pipeline_id(self):
+        """Get the id of the best pipeline
+        :returns: The id of the best pipeline
+        """
+        best_pipeline_id = max(self.pipelines.values(), key=lambda x: x['normalized_score'])['id']
+
+        return best_pipeline_id
+
+    def list_primitives(self):
+        """Get a list of primitives used by the AutoML system
+        :returns: List of primitives used by the AutoML system
+        """
+        primitives = self.ta3.list_primitives()
+
+        return primitives
+
     def create_pipelineprofiler_inputs(self, test_dataset=None, source_name=None):
-        """Create an proper input supported by PipelineProfiler based on the pipelines generated by a TA2 system
+        """Create an proper input supported by PipelineProfiler based on the pipelines generated by an AutoML system
 
         :param test_dataset: Path to dataset. If None it will use the search scores, otherwise will score the
             pipelines over the passed dataset
-        :param source_name: Name of the pipeline source. If None it will use the TA2 id
+        :param source_name: Name of the pipeline source. If None it will use the AutoML id
         :returns: List of pipelines in the PipelineProfiler input format
         """
         profiler_inputs = []
         pipeline_ids = set()
 
         if source_name is None:
-            source_name = self.ta2_id
+            source_name = self.automl_id
 
         if test_dataset is not None:
             logger.info('Calculating scores in the test dataset...')
@@ -700,14 +722,14 @@ class AutoML:
 
         logger.info('Session ended!')
 
-    def start_ta2(self):
+    def start_automl(self):
         if self.ta2 is not None:
             self.end_session()
 
-        logger.info('Initializing %s AutoML...', self.ta2_id)
+        logger.info('Initializing %s AutoML...', self.automl_id)
 
         self.ta2 = self.container_runtime(
-            TA2_DOCKER_IMAGES[self.ta2_id],
+            AUTOML_DOCKER_IMAGES[self.automl_id],
             self.dataset,
             self.output_folder,
             self.port,
@@ -728,7 +750,7 @@ class AutoML:
             try:
                 self.ta3 = GrpcClient(host, self.port)
                 self.ta3.do_hello()
-                logger.info('%s AutoML initialized!', self.ta2_id)
+                logger.info('%s AutoML initialized!', self.automl_id)
                 break
             except Exception:
                 if self.ta3.channel is not None:
@@ -800,7 +822,7 @@ class AutoML:
 
         :param test_dataset: Path to dataset. If None it will use the search scores, otherwise will score the
             pipelines over the passed dataset
-        :param source_name: Name of the pipeline source. If None it will use the TA2 id
+        :param source_name: Name of the pipeline source. If None it will use the AutoML id
         :param precomputed_pipelines: If not None, it loads pipelines previously computed
         """
         if precomputed_pipelines is None:
@@ -841,12 +863,12 @@ class AutoML:
                                   label_column, num_features, top_labels)
 
     @staticmethod
-    def add_new_ta2(ta2_id, docker_image_url):
-        """Add a new TA2 system that is not already defined in the D3M Interface. It can also be a different version of
-        a pre-existing TA2 (however it must be added with a different name)
+    def add_new_automl(automl_id, docker_image_url):
+        """Add a new AutoML system that is not already defined in the D3M Interface. It can also be a different version
+        of a pre-existing AutoML (however it must be added with a different name)
 
-        :param ta2_id: A id to identify the new TA2
-        :param docker_image_url: The docker image url of the new TA2
+        :param automl_id: A id to identify the new AutoML
+        :param docker_image_url: The docker image url of the new AutoML
         """
-        TA2_DOCKER_IMAGES[ta2_id] = docker_image_url
-        logger.info('%s TA2 added!', ta2_id)
+        AUTOML_DOCKER_IMAGES[automl_id] = docker_image_url
+        logger.info('%s AutoML added!', automl_id)
