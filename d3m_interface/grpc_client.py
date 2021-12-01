@@ -6,8 +6,8 @@ import d3m_automl_rpc.value_pb2 as pb_value
 from d3m.utils import fix_uri
 from d3m.metadata import pipeline as pipeline_module
 from d3m.metadata.problem import Problem, PerformanceMetric
-from d3m_automl_rpc.utils import encode_problem_description, encode_performance_metric, decode_performance_metric, \
-    decode_value, decode_pipeline_description
+from d3m_automl_rpc.utils import encode_problem_description, encode_performance_metric, encode_value, \
+    decode_pipeline_description, decode_performance_metric, decode_value
 
 
 logger = logging.getLogger(__name__)
@@ -21,9 +21,12 @@ class GrpcClient:
     def do_hello(self):
         self.core.Hello(pb_core.HelloRequest())
 
-    def search_solutions(self, dataset_path, problem_path, time_bound, time_bound_run, pipeline_template=None):
+    def search_solutions(self, dataset_path, problem_path, time_bound, time_bound_run, automl_hyperparameters=None,
+                         pipeline_template=None):
         problem = Problem.load(problem_uri=fix_uri(problem_path))
         version = pb_core.DESCRIPTOR.GetOptions().Extensions[pb_core.protocol_version]
+        automl_hyperparams_encoded = {k: encode_value({'type': 'object', 'value': v}, ['RAW'], '/tmp') for k, v in
+                                      automl_hyperparameters.items()}
 
         search = self.core.SearchSolutions(pb_core.SearchSolutionsRequest(
             user_agent='ta3_stub',
@@ -35,7 +38,7 @@ class GrpcClient:
             allowed_value_types=['RAW', 'DATASET_URI', 'CSV_URI'],
             template=pipeline_template,
             problem=encode_problem_description(problem),
-
+            automl_hyperparameters=automl_hyperparams_encoded,
             inputs=[pb_value.Value(
                 dataset_uri='file://%s' % dataset_path,
             )],
@@ -198,9 +201,13 @@ class GrpcClient:
         self.core.SolutionExport(pb_core.SolutionExportRequest(solution_id=fitted_solution_id, rank=rank))
 
     def list_primitives(self):
+        primitives = []
         response = self.core.ListPrimitives(pb_core.ListPrimitivesRequest())
 
-        return response.primitives
+        for primitive in response.primitives:
+            primitives.append(primitive.python_path)
+
+        return primitives
 
     def stop_search(self, search_id):
         self.core.StopSearchSolutions(pb_core.StopSearchSolutionsRequest(search_id=search_id))
