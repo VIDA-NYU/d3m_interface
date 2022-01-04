@@ -4,7 +4,7 @@ Installation
 Linux, Mac and Windows
 ----------------------
 
-This package works with Python 3.6. You need to have `Docker <https://docs.docker.com/get-docker/>`__
+This package works with Python 3.6 through 3.8. You need to have `Docker <https://docs.docker.com/get-docker/>`__
 installed on your operating system.
 
 You can install the latest stable version of this library directly from `PyPI <https://pypi.org/project/d3m-interface/>`__

@@ -8,7 +8,8 @@ Library to use D3M AutoML systems. This repository contains an implementation to
 [Documentation is available here](https://d3m-interface.readthedocs.io/en/latest/)
 
 ## Installation
-This package works with Python 3.6. You need to have [Docker](https://docs.docker.com/get-docker/) installed on your operating system.
+
+This package works with Python 3.6 through 3.8. You need to have [Docker](https://docs.docker.com/get-docker/) installed on your operating system.
 
 You can install the latest stable version of this library from [PyPI](https://pypi.org/project/d3m-interface/):
 
