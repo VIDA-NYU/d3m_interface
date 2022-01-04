@@ -1,11 +1,16 @@
-image: python:3.6
-
 variables:
   DOCKER_HOST: tcp://docker:2375
   DOCKER_DRIVER: overlay2
 
 test:
   stage: test
+  parallel:
+    matrix:
+      - IMAGE:
+          - python:3.6
+          - python:3.7
+          - python:3.8
+  image: $IMAGE
   services:
     - docker:20.10.5-dind
   before_script:
