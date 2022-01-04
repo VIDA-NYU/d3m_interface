@@ -18,7 +18,7 @@ To install the latest development version (for Linux, Mac and Windows):
 
 ::
 
-    $ pip install git+https://gitlab.com/ViDA-NYU/d3m/d3m_interface.git@devel
+    $ pip install git+https://gitlab.com/ViDA-NYU/d3m/d3m_interface.git@devel#egg=d3m_interface
 
 
 After the installation on Windows, you need to download manually the Docker image of the D3M AutoML system. You can

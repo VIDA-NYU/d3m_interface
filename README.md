@@ -19,5 +19,5 @@ $ pip install d3m-interface
 To install the latest development version:
 
 ```
-$ pip install git+https://gitlab.com/ViDA-NYU/d3m/d3m_interface.git@devel
+$ pip install git+https://gitlab.com/ViDA-NYU/d3m/d3m_interface.git@devel#egg=d3m_interface
 ```
