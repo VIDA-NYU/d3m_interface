@@ -1,3 +1,4 @@
+import atexit
 import os
 import random
 import re
@@ -69,6 +70,7 @@ class DockerRuntime:
                 image,
             ],
         )
+        atexit.register(subprocess.call, ['docker', 'stop', self.name])
 
     def run_command(self, args):
         cmd = ['docker', 'exec', self.name]
