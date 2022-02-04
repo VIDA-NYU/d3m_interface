@@ -1,4 +1,6 @@
+import atexit
 import os
+import random
 import re
 import sys
 import time
@@ -41,18 +43,23 @@ class DockerRuntime:
     dataset_in_container = '/input/dataset'
     output_in_container = '/output'
 
+    @classmethod
+    def default_port(cls):
+        return random.randint(32769, 65535)
+
     def __init__(self, image, dataset, output_folder, port=45042):
+        self.name = 'automl-container-%s' % port
         process_returncode = 0
         while process_returncode == 0:
             # Force to stop the docker container
-            process_returncode = subprocess.call(['docker', 'stop', 'ta2_container'])
+            process_returncode = subprocess.call(['docker', 'stop', self.name])
             time.sleep(2)
 
-        logger.info("Creating Docker container...")
+        logger.info("Creating Docker container %s...", self.name)
         self.proc = subprocess.Popen(
             [
                 'docker', 'run', '--rm',
-                '--name', 'ta2_container',
+                '--name', self.name,
                 '-p', '%d:45042' % port,
                 '-e', 'D3MRUN=ta2ta3',
                 '-e', 'D3MINPUTDIR=/input',
@@ -63,9 +70,10 @@ class DockerRuntime:
                 image,
             ],
         )
+        atexit.register(subprocess.call, ['docker', 'stop', self.name])
 
     def run_command(self, args):
-        cmd = ['docker', 'exec', 'ta2_container']
+        cmd = ['docker', 'exec', self.name]
         cmd.extend(args)
         process = subprocess.Popen(
             cmd,
@@ -77,12 +85,16 @@ class DockerRuntime:
             raise RuntimeError(stderr.decode())
 
     def close(self):
-        subprocess.call(['docker', 'stop', 'ta2_container'])
+        subprocess.call(['docker', 'stop', self.name])
 
 
 class SingularityRuntime:
     dataset_in_container = '/input/dataset'
     output_in_container = '/output'
+
+    @classmethod
+    def default_port(cls):
+        return 45042
 
     def __init__(self, image, dataset, output_folder, port=45042):
         if port != 45042:
@@ -151,6 +163,10 @@ class SingularityRuntime:
 
 
 class LocalRuntime:
+    @classmethod
+    def default_port(cls):
+        return 45042
+
     def __init__(self, image, dataset, output_folder, port=45042):
         if port != 45042:
             raise ValueError(
@@ -189,7 +205,7 @@ class LocalRuntime:
 
 
 class AutoML:
-    def __init__(self, output_folder, automl_id='AlphaD3M', container_runtime='docker', grpc_port=45042):
+    def __init__(self, output_folder, automl_id='AlphaD3M', container_runtime='docker', grpc_port=None):
         """Create/instantiate an AutoML object
 
         :param output_folder: Path to the output directory
@@ -209,6 +225,8 @@ class AutoML:
             self.container_runtime = LocalRuntime
         else:
             raise ValueError("Unknown container runtime %r" % container_runtime)
+        if grpc_port is None:
+            grpc_port = self.container_runtime.default_port()
         self.automl_id = automl_id
         self.pipelines = {}
         self.ta2 = None
