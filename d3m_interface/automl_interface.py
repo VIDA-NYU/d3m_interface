@@ -1,4 +1,5 @@
 import os
+import random
 import re
 import sys
 import time
@@ -40,6 +41,10 @@ IGNORE_SUMMARY_PRIMITIVES = {'d3m.primitives.data_transformation.construct_predi
 class DockerRuntime:
     dataset_in_container = '/input/dataset'
     output_in_container = '/output'
+
+    @classmethod
+    def default_port(cls):
+        return random.randint(32769, 65535)
 
     def __init__(self, image, dataset, output_folder, port=45042):
         process_returncode = 0
@@ -83,6 +88,10 @@ class DockerRuntime:
 class SingularityRuntime:
     dataset_in_container = '/input/dataset'
     output_in_container = '/output'
+
+    @classmethod
+    def default_port(cls):
+        return 45042
 
     def __init__(self, image, dataset, output_folder, port=45042):
         if port != 45042:
@@ -151,6 +160,10 @@ class SingularityRuntime:
 
 
 class LocalRuntime:
+    @classmethod
+    def default_port(cls):
+        return 45042
+
     def __init__(self, image, dataset, output_folder, port=45042):
         if port != 45042:
             raise ValueError(
@@ -189,7 +202,7 @@ class LocalRuntime:
 
 
 class AutoML:
-    def __init__(self, output_folder, automl_id='AlphaD3M', container_runtime='docker', grpc_port=45042):
+    def __init__(self, output_folder, automl_id='AlphaD3M', container_runtime='docker', grpc_port=None):
         """Create/instantiate an AutoML object
 
         :param output_folder: Path to the output directory
@@ -209,6 +222,8 @@ class AutoML:
             self.container_runtime = LocalRuntime
         else:
             raise ValueError("Unknown container runtime %r" % container_runtime)
+        if grpc_port is None:
+            grpc_port = self.container_runtime.default_port()
         self.automl_id = automl_id
         self.pipelines = {}
         self.ta2 = None
