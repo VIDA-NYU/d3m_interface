@@ -47,17 +47,18 @@ class DockerRuntime:
         return random.randint(32769, 65535)
 
     def __init__(self, image, dataset, output_folder, port=45042):
+        self.name = 'automl-container-%s' % port
         process_returncode = 0
         while process_returncode == 0:
             # Force to stop the docker container
-            process_returncode = subprocess.call(['docker', 'stop', 'ta2_container'])
+            process_returncode = subprocess.call(['docker', 'stop', self.name])
             time.sleep(2)
 
-        logger.info("Creating Docker container...")
+        logger.info("Creating Docker container %s...", self.name)
         self.proc = subprocess.Popen(
             [
                 'docker', 'run', '--rm',
-                '--name', 'ta2_container',
+                '--name', self.name,
                 '-p', '%d:45042' % port,
                 '-e', 'D3MRUN=ta2ta3',
                 '-e', 'D3MINPUTDIR=/input',
@@ -70,7 +71,7 @@ class DockerRuntime:
         )
 
     def run_command(self, args):
-        cmd = ['docker', 'exec', 'ta2_container']
+        cmd = ['docker', 'exec', self.name]
         cmd.extend(args)
         process = subprocess.Popen(
             cmd,
@@ -82,7 +83,7 @@ class DockerRuntime:
             raise RuntimeError(stderr.decode())
 
     def close(self):
-        subprocess.call(['docker', 'stop', 'ta2_container'])
+        subprocess.call(['docker', 'stop', self.name])
 
 
 class SingularityRuntime:
