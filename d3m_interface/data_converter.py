@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from os.path import join, exists, split, dirname
 from d3m.container import Dataset
-from d3m.utils import fix_uri
+from d3m.utils import path_to_uri
 from d3m.container.utils import save_container
 from d3m.metadata.problem import PerformanceMetricBase, TaskKeywordBase
 
@@ -79,7 +79,7 @@ def create_d3m_dataset(dataset_path, destination_path):
     if exists(destination_path):
         shutil.rmtree(destination_path)
 
-    dataset = Dataset.load(fix_uri(dataset_path), dataset_id=DATASET_ID)
+    dataset = Dataset.load(path_to_uri(dataset_path), dataset_id=DATASET_ID)
     save_container(dataset, destination_path)
 
     return dataset
