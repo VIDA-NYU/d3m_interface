@@ -52,7 +52,9 @@ class DockerRuntime:
         process_returncode = 0
         while process_returncode == 0:
             # Force to stop the docker container
-            process_returncode = subprocess.call(['docker', 'stop', self.name])
+            process_returncode = subprocess.call(['docker', 'stop', self.name],
+                                                 stdout=subprocess.DEVNULL,
+                                                 stderr=subprocess.STDOUT)
             time.sleep(2)
 
         logger.info("Creating Docker container %s...", self.name)
@@ -69,8 +71,10 @@ class DockerRuntime:
                 '-v', '%s:/output' % fix_path_for_docker(output_folder),
                 image,
             ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT
         )
-        atexit.register(subprocess.call, ['docker', 'stop', self.name])
+        atexit.register(subprocess.call, ['docker', 'stop', self.name], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
 
     def run_command(self, args):
         cmd = ['docker', 'exec', self.name]
@@ -85,7 +89,7 @@ class DockerRuntime:
             raise RuntimeError(stderr.decode())
 
     def close(self):
-        subprocess.call(['docker', 'stop', self.name])
+        subprocess.call(['docker', 'stop', self.name], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
 
 
 class SingularityRuntime:
@@ -396,7 +400,7 @@ class AutoML:
         test_dataset_d3m = pjoin(dataset_in_container, 'TEST/dataset_TEST/datasetDoc.json')
 
         if calculate_confidence:
-            # The only way to get the confidence is through the CLI utility, TA3TA2 API doesn't support it
+            # TODO: The only way to get the confidence is through the CLI utility, TA3TA2 API doesn't support it
             original_pipeline = self.pipelines[pipeline_id]['json_representation']
             confidence_pipeline = create_confidence_pipeline(original_pipeline)
 
