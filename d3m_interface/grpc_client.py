@@ -3,7 +3,7 @@ import logging
 import d3m_automl_rpc.core_pb2 as pb_core
 import d3m_automl_rpc.core_pb2_grpc as pb_core_grpc
 import d3m_automl_rpc.value_pb2 as pb_value
-from d3m.utils import fix_uri
+from d3m.utils import path_to_uri
 from d3m.metadata import pipeline as pipeline_module
 from d3m.metadata.problem import Problem, PerformanceMetric
 from d3m_automl_rpc.utils import encode_problem_description, encode_performance_metric, encode_value, \
@@ -23,7 +23,7 @@ class GrpcClient:
 
     def search_solutions(self, dataset_path, problem_path, time_bound, time_bound_run, automl_hyperparameters=None,
                          pipeline_template=None):
-        problem = Problem.load(problem_uri=fix_uri(problem_path))
+        problem = Problem.load(problem_uri=path_to_uri(problem_path))
         version = pb_core.DESCRIPTOR.GetOptions().Extensions[pb_core.protocol_version]
         automl_hyperparams_encoded = {k: encode_value({'type': 'object', 'value': v}, ['RAW'], '/tmp') for k, v in
                                       automl_hyperparameters.items()}
@@ -59,7 +59,7 @@ class GrpcClient:
                 yield {'id': pipeline_id}
 
     def score_solutions(self, solution_id, dataset_path, problem_path, method, stratified, shuffle, folds, train_ratio, random_seed):
-        problem = Problem.load(problem_uri=fix_uri(problem_path))
+        problem = Problem.load(problem_uri=path_to_uri(problem_path))
         methods_mapping = {'cross_validation': 'K_FOLD', 'holdout': 'HOLDOUT'}
         metrics = []
         score_data = None
@@ -172,7 +172,7 @@ class GrpcClient:
         return response.solution_uri
 
     def load_solution(self, solution_path):
-        solution_uri = fix_uri(solution_path)
+        solution_uri = path_to_uri(solution_path)
         response = self.core.LoadSolution(pb_core.LoadSolutionRequest(solution_uri=solution_uri))
 
         return response.solution_id
@@ -183,7 +183,7 @@ class GrpcClient:
         return response.fitted_solution_uri
 
     def load_fitted_solution(self, fitted_solution_path):
-        fitted_solution_uri = fix_uri(fitted_solution_path)
+        fitted_solution_uri = path_to_uri(fitted_solution_path)
         response = self.core.LoadFittedSolution(pb_core.LoadFittedSolutionRequest(fitted_solution_uri=fitted_solution_uri))
 
         return response.fitted_solution_id

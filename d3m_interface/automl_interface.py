@@ -1,4 +1,6 @@
+import atexit
 import os
+import random
 import re
 import sys
 import time
@@ -12,7 +14,7 @@ import pandas as pd
 import d3m_interface.visualization as vis
 from d3m_interface.data_converter import is_d3m_format, is_d3m_collection, dataset_to_d3m, d3mtext_to_dataframe, to_d3m_json
 from d3m_interface.confidence_calculator import create_confidence_pipeline
-from d3m_interface.utils import copy_folder, fix_path_for_docker
+from d3m_interface.utils import copy_folder, fix_path_for_docker, is_port_in_use
 from d3m_interface.grpc_client import GrpcClient
 from d3m_interface.pipeline import Pipeline
 from threading import Thread
@@ -27,8 +29,8 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s', str
 logger = logging.getLogger(__name__)
 
 
-AUTOML_DOCKER_IMAGES = {'AlphaD3M': 'registry.gitlab.com/vida-nyu/d3m/alphad3m:devel',
-                        'CMU': 'registry.gitlab.com/sray/cmu-ta2:latest'}
+AUTOML_DOCKER_IMAGES = {'AlphaD3M': 'registry.gitlab.com/vida-nyu/d3m/alphad3m:latest',
+                        'AutonML': 'registry.gitlab.com/sray/cmu-ta2:latest'}
 
 IGNORE_SUMMARY_PRIMITIVES = {'d3m.primitives.data_transformation.construct_predictions.Common',
                              'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
@@ -41,18 +43,25 @@ class DockerRuntime:
     dataset_in_container = '/input/dataset'
     output_in_container = '/output'
 
+    @classmethod
+    def default_port(cls):
+        return random.randint(32769, 65535)
+
     def __init__(self, image, dataset, output_folder, port=45042):
+        self.name = 'automl-container-%s' % port
         process_returncode = 0
         while process_returncode == 0:
             # Force to stop the docker container
-            process_returncode = subprocess.call(['docker', 'stop', 'ta2_container'])
+            process_returncode = subprocess.call(['docker', 'stop', self.name],
+                                                 stdout=subprocess.DEVNULL,
+                                                 stderr=subprocess.STDOUT)
             time.sleep(2)
 
-        logger.info("Creating Docker container...")
+        logger.info("Creating Docker container %s...", self.name)
         self.proc = subprocess.Popen(
             [
                 'docker', 'run', '--rm',
-                '--name', 'ta2_container',
+                '--name', self.name,
                 '-p', '%d:45042' % port,
                 '-e', 'D3MRUN=ta2ta3',
                 '-e', 'D3MINPUTDIR=/input',
@@ -62,10 +71,13 @@ class DockerRuntime:
                 '-v', '%s:/output' % fix_path_for_docker(output_folder),
                 image,
             ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT
         )
+        atexit.register(subprocess.call, ['docker', 'stop', self.name], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
 
     def run_command(self, args):
-        cmd = ['docker', 'exec', 'ta2_container']
+        cmd = ['docker', 'exec', self.name]
         cmd.extend(args)
         process = subprocess.Popen(
             cmd,
@@ -77,12 +89,16 @@ class DockerRuntime:
             raise RuntimeError(stderr.decode())
 
     def close(self):
-        subprocess.call(['docker', 'stop', 'ta2_container'])
+        subprocess.call(['docker', 'stop', self.name], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
 
 
 class SingularityRuntime:
     dataset_in_container = '/input/dataset'
     output_in_container = '/output'
+
+    @classmethod
+    def default_port(cls):
+        return 45042
 
     def __init__(self, image, dataset, output_folder, port=45042):
         if port != 45042:
@@ -151,6 +167,10 @@ class SingularityRuntime:
 
 
 class LocalRuntime:
+    @classmethod
+    def default_port(cls):
+        return 45042
+
     def __init__(self, image, dataset, output_folder, port=45042):
         if port != 45042:
             raise ValueError(
@@ -188,14 +208,54 @@ class LocalRuntime:
         self.proc = None
 
 
+class PypiRuntime:
+    @classmethod
+    def default_port(cls):
+        return 45042
+
+    def __init__(self, image, dataset, output_folder, port=45042):
+        if port != 45042:
+            raise ValueError(
+                "There is currently no way to change the port used by the "
+                + "AutoML system when using local execution"
+            )
+
+        self.dataset_in_container = dataset
+        self.output_in_container = output_folder
+
+        os.makedirs(output_folder, exist_ok=True)
+        logger.info("Starting process...")
+
+        if is_port_in_use(port):
+            raise RuntimeError('Port %d is being used' % port)
+
+        self.proc = subprocess.Popen(
+            ['alphad3m_serve', output_folder, str(port)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
+        )
+
+    def run_command(self, args):
+        process = subprocess.Popen(args, stderr=subprocess.PIPE)
+        _, stderr = process.communicate()
+
+        if process.returncode != 0:
+            raise RuntimeError(stderr.decode())
+
+    def close(self):
+        self.proc.terminate()
+        if self.proc.wait(10) is None:
+            self.proc.kill()
+        self.proc = None
+
+
 class AutoML:
-    def __init__(self, output_folder, automl_id='AlphaD3M', container_runtime='docker', grpc_port=45042):
+    def __init__(self, output_folder, automl_id='AlphaD3M', container_runtime='docker', grpc_port=None):
         """Create/instantiate an AutoML object
 
         :param output_folder: Path to the output directory
-        :param automl_id: AutoML system name. It makes reference to the AutoML docker image. The provided AutoML systems
-            are the following: `AlphaD3M, CMU, SRI, TAMU`
-        :param container_runtime: The container runtime to use, either 'docker' or 'singularity'
+        :param automl_id: AutoML system name to be used. AutoML systems available are: 'AlphaD3M', 'AutonML'. Currently
+        only AlphaD3M is available for the container_runtime='local' option
+        :param container_runtime: The container runtime to use, can be 'docker', 'singularity', 'pypi', or 'local'
         """
         if automl_id not in AUTOML_DOCKER_IMAGES:
             raise ValueError('Unknown "%s" AutoML, you should choose among: [%s]' % (automl_id, ', '.join(AUTOML_DOCKER_IMAGES)))
@@ -205,10 +265,14 @@ class AutoML:
             self.container_runtime = DockerRuntime
         elif container_runtime == 'singularity':
             self.container_runtime = SingularityRuntime
+        elif container_runtime == 'pypi':
+            self.container_runtime = PypiRuntime
         elif container_runtime == 'local':
             self.container_runtime = LocalRuntime
         else:
             raise ValueError("Unknown container runtime %r" % container_runtime)
+        if grpc_port is None:
+            grpc_port = self.container_runtime.default_port()
         self.automl_id = automl_id
         self.pipelines = {}
         self.ta2 = None
@@ -276,6 +340,7 @@ class AutoML:
             raise
 
         jobs = []
+
         for pipeline in pipelines:
             end_time = datetime.datetime.utcnow()
             try:
@@ -338,8 +403,8 @@ class AutoML:
             if not step_csv_uri.startswith('file://'):
                 logger.warning('Exposed step output "%s" cannot be read' % step_id)
                 continue
-            step_csv_uri = step_csv_uri.replace('file:///output/', '')
-            step_dataframe = pd.read_csv(join(self.output_folder, step_csv_uri))
+            step_csv_path = step_csv_uri.replace('file://' + self.ta2.output_in_container, self.output_folder)
+            step_dataframe = pd.read_csv(step_csv_path)
             pipeline_step_outputs[step_id] = step_dataframe
 
         self.pipelines[pipeline_id]['fitted_id'] = fitted_pipeline_id
@@ -378,7 +443,7 @@ class AutoML:
         test_dataset_d3m = pjoin(dataset_in_container, 'TEST/dataset_TEST/datasetDoc.json')
 
         if calculate_confidence:
-            # The only way to get the confidence is through the CLI utility, TA3TA2 API doesn't support it
+            # TODO: The only way to get the confidence is through the CLI utility, TA3TA2 API doesn't support it
             original_pipeline = self.pipelines[pipeline_id]['json_representation']
             confidence_pipeline = create_confidence_pipeline(original_pipeline)
 
@@ -427,8 +492,8 @@ class AutoML:
             if not step_csv_uri.startswith('file://'):
                 logger.warning('Exposed step output "%s" cannot be read' % step_id)
                 continue
-            step_csv_uri = step_csv_uri.replace('file:///output/', '')
-            step_dataframe = pd.read_csv(join(self.output_folder, step_csv_uri))
+            step_csv_path = step_csv_uri.replace('file://' + self.ta2.output_in_container, self.output_folder)
+            step_dataframe = pd.read_csv(step_csv_path)
             pipeline_step_outputs[step_id] = step_dataframe
 
         predictions = pipeline_step_outputs['outputs.0']
@@ -505,7 +570,7 @@ class AutoML:
             raise ValueError('Pipeline id=%s does not exist' % pipeline_id)
 
         solution_uri = self.ta3.save_solution(pipeline_id)
-        folder_src_path = join(self.output_folder, solution_uri.replace('file:///output/', ''))
+        folder_src_path = solution_uri.replace('file://' + self.ta2.output_in_container, self.output_folder)
         folder_dst_path = join(output_folder, pipeline_id)
         copy_folder(folder_src_path, folder_dst_path, True)
         pipeline_run = {

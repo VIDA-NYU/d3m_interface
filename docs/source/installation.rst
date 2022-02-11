@@ -1,41 +1,50 @@
 Installation
 ============
 
-Linux, Mac and Windows
-----------------------
-
-This package works with Python 3.6 through 3.8. You need to have `Docker <https://docs.docker.com/get-docker/>`__
-installed on your operating system.
+This package works with Python 3.6 through 3.8 in Linux, Mac and Windows.
 
 You can install the latest stable version of this library directly from `PyPI <https://pypi.org/project/d3m-interface/>`__
-using PIP (only for Linux and Mac):
+using PIP:
 
 ::
 
     $ pip install d3m-interface
 
-To install the latest development version (for Linux, Mac and Windows):
 
-::
+Using the AutoML systems via containers
+---------------------------------------
 
-    $ pip install git+https://gitlab.com/ViDA-NYU/d3m/d3m_interface.git@devel#egg=d3m_interface
+For this option, you need to have `Docker <https://docs.docker.com/get-docker/>`__ or `Singularity <https://sylabs.io/guides/3.5/user-guide/introduction.html>`__
+installed on your operating system.
+
+Everything you need to deploy, `d3m-interface`
+will simply run on the Docker/Singularity engine as a container. You can see
+`here <https://gitlab.com/ViDA-NYU/d3m/d3m_interface/-/blob/master/d3m_interface/automl_interface.py#L61>`__ how
+this container is set up to deploy different AutoML systems.
+
+Note that `d3m-interface` uses the pre-built Docker images of the D3M AutoML systems. For AlphaD3M, you
+can see `here <https://gitlab.com/ViDA-NYU/d3m/alphad3m/-/blob/master/Dockerfile>`__ how the Docker image is built.
+For the other D3M AutoML systems, you can find more information :doc:`here <automls_supported>`.
 
 
-After the installation on Windows, you need to download manually the Docker image of the D3M AutoML system. You can
+Once the installation of `d3m-interface` on Windows is completed, you need to download manually the Docker image of the D3M AutoML system. You can
 download it for AlphaD3M using:
 
 ::
 
     $ docker pull registry.gitlab.com/vida-nyu/d3m/alphad3m:master
 
-How Docker is Used in D3M Interface
------------------------------------
 
-Docker creates containers instead of full-blown virtual machines. So, everything you need to deploy, `d3m-interface`
-will simply run on the Docker engine as a container. You can see
-`here <https://gitlab.com/ViDA-NYU/d3m/d3m_interface/-/blob/master/d3m_interface/automl_interface.py#L561>`__ how
-this container is set up to deploy different AutoML systems.
+Using the AutoML systems via PyPI
+----------------------------------
+For this option, you don't need to install neither Docker nor Singularity. You just simply need to install the PyPI
+version of the AutoML system.
 
-Note that `d3m-interface` uses the pre-built Docker images (latest version) of the D3M AutoML systems. For AlphaD3M, you
-can see `here <https://gitlab.com/ViDA-NYU/d3m/alphad3m/-/blob/master/Dockerfile>`__ how the Docker image is built.
-For the other D3M AutoML systems, you can find more information :doc:`here <automls_supported>`.
+You can install the latest stable version of AlphaD3M from `PyPI <https://pypi.org/project/alpha/>`__ using PIP:
+
+::
+
+     $ pip install alphad3m
+
+Currently, this option only has support for classification and regression tabular problems. It works with Python 3.8
+in  Linux and Mac.
