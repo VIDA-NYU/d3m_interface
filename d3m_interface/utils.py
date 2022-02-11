@@ -1,5 +1,6 @@
 import shutil
 import platform
+import socket
 from os.path import exists
 
 
@@ -14,3 +15,9 @@ def copy_folder(source_path, destination_path, remove_destination=False):
         shutil.rmtree(destination_path)
 
     shutil.copytree(source_path, destination_path)
+
+
+def is_port_in_use(port):
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(('localhost', port)) == 0

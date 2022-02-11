@@ -27,7 +27,7 @@ setuptools.setup(
         'scikit-learn',
         'lime>=0.2,<0.3',
         'pipelineprofiler>=0.1,<2',
-        'datamart_profiler',
+        'datamart_profiler>=0.9',
         'data-profile-viewer>=0.2,<3',
         'visual-text-explorer>=0.1,<2',
     ],
