@@ -14,7 +14,7 @@ import pandas as pd
 import d3m_interface.visualization as vis
 from d3m_interface.data_converter import is_d3m_format, is_d3m_collection, dataset_to_d3m, d3mtext_to_dataframe, to_d3m_json
 from d3m_interface.confidence_calculator import create_confidence_pipeline
-from d3m_interface.utils import copy_folder, fix_path_for_docker
+from d3m_interface.utils import copy_folder, fix_path_for_docker, is_port_in_use
 from d3m_interface.grpc_client import GrpcClient
 from d3m_interface.pipeline import Pipeline
 from threading import Thread
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 AUTOML_DOCKER_IMAGES = {'AlphaD3M': 'registry.gitlab.com/vida-nyu/d3m/alphad3m:devel',
-                        'CMU': 'registry.gitlab.com/sray/cmu-ta2:latest'}
+                        'AutonML': 'registry.gitlab.com/sray/cmu-ta2:latest'}
 
 IGNORE_SUMMARY_PRIMITIVES = {'d3m.primitives.data_transformation.construct_predictions.Common',
                              'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
@@ -183,15 +183,13 @@ class LocalRuntime:
 
         os.makedirs(output_folder, exist_ok=True)
         logger.info("Starting process...")
+
+        if is_port_in_use(port):
+            raise RuntimeError('Port %d is being used' % port)
+
         self.proc = subprocess.Popen(
-            ['eval.sh'],
-            env=dict(
-                os.environ,
-                D3MRUN='ta2ta3',
-                D3MINPUTDIR='/input',
-                D3MOUTPUTDIR='/output',
-                D3MSTATICDIR='/output',  # TODO: Temporal assignment for D3MSTATICDIR env variable
-            ),
+            ['alphad3m_serve', output_folder, str(port)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
         )
 
     def run_command(self, args):
@@ -213,9 +211,9 @@ class AutoML:
         """Create/instantiate an AutoML object
 
         :param output_folder: Path to the output directory
-        :param automl_id: AutoML system name. It makes reference to the AutoML docker image. The provided AutoML systems
-            are the following: `AlphaD3M, CMU, SRI, TAMU`
-        :param container_runtime: The container runtime to use, either 'docker' or 'singularity'
+        :param automl_id: AutoML system name to be used. AutoML systems available are: 'AlphaD3M', 'AutonML'. Currently
+        only AlphaD3M is available for the container_runtime='local' option
+        :param container_runtime: The container runtime to use, can be 'docker', 'singularity' or 'local'
         """
         if automl_id not in AUTOML_DOCKER_IMAGES:
             raise ValueError('Unknown "%s" AutoML, you should choose among: [%s]' % (automl_id, ', '.join(AUTOML_DOCKER_IMAGES)))
@@ -298,6 +296,7 @@ class AutoML:
             raise
 
         jobs = []
+
         for pipeline in pipelines:
             end_time = datetime.datetime.utcnow()
             try:
@@ -360,8 +359,8 @@ class AutoML:
             if not step_csv_uri.startswith('file://'):
                 logger.warning('Exposed step output "%s" cannot be read' % step_id)
                 continue
-            step_csv_uri = step_csv_uri.replace('file:///output/', '')
-            step_dataframe = pd.read_csv(join(self.output_folder, step_csv_uri))
+            step_csv_path = step_csv_uri.replace('file://' + self.ta2.output_in_container, self.output_folder)
+            step_dataframe = pd.read_csv(step_csv_path)
             pipeline_step_outputs[step_id] = step_dataframe
 
         self.pipelines[pipeline_id]['fitted_id'] = fitted_pipeline_id
@@ -449,8 +448,8 @@ class AutoML:
             if not step_csv_uri.startswith('file://'):
                 logger.warning('Exposed step output "%s" cannot be read' % step_id)
                 continue
-            step_csv_uri = step_csv_uri.replace('file:///output/', '')
-            step_dataframe = pd.read_csv(join(self.output_folder, step_csv_uri))
+            step_csv_path = step_csv_uri.replace('file://' + self.ta2.output_in_container, self.output_folder)
+            step_dataframe = pd.read_csv(step_csv_path)
             pipeline_step_outputs[step_id] = step_dataframe
 
         predictions = pipeline_step_outputs['outputs.0']
@@ -527,7 +526,7 @@ class AutoML:
             raise ValueError('Pipeline id=%s does not exist' % pipeline_id)
 
         solution_uri = self.ta3.save_solution(pipeline_id)
-        folder_src_path = join(self.output_folder, solution_uri.replace('file:///output/', ''))
+        folder_src_path = solution_uri.replace('file://' + self.ta2.output_in_container, self.output_folder)
         folder_dst_path = join(output_folder, pipeline_id)
         copy_folder(folder_src_path, folder_dst_path, True)
         pipeline_run = {
