@@ -183,6 +183,48 @@ class LocalRuntime:
 
         os.makedirs(output_folder, exist_ok=True)
         logger.info("Starting process...")
+        self.proc = subprocess.Popen(
+            ['eval.sh'],
+            env=dict(
+                os.environ,
+                D3MRUN='ta2ta3',
+                D3MINPUTDIR='/input',
+                D3MOUTPUTDIR='/output',
+                D3MSTATICDIR='/output',  # TODO: Temporal assignment for D3MSTATICDIR env variable
+            ),
+        )
+
+    def run_command(self, args):
+        process = subprocess.Popen(args, stderr=subprocess.PIPE)
+        _, stderr = process.communicate()
+
+        if process.returncode != 0:
+            raise RuntimeError(stderr.decode())
+
+    def close(self):
+        self.proc.terminate()
+        if self.proc.wait(10) is None:
+            self.proc.kill()
+        self.proc = None
+
+
+class PypiRuntime:
+    @classmethod
+    def default_port(cls):
+        return 45042
+
+    def __init__(self, image, dataset, output_folder, port=45042):
+        if port != 45042:
+            raise ValueError(
+                "There is currently no way to change the port used by the "
+                + "AutoML system when using local execution"
+            )
+
+        self.dataset_in_container = dataset
+        self.output_in_container = output_folder
+
+        os.makedirs(output_folder, exist_ok=True)
+        logger.info("Starting process...")
 
         if is_port_in_use(port):
             raise RuntimeError('Port %d is being used' % port)
@@ -213,7 +255,7 @@ class AutoML:
         :param output_folder: Path to the output directory
         :param automl_id: AutoML system name to be used. AutoML systems available are: 'AlphaD3M', 'AutonML'. Currently
         only AlphaD3M is available for the container_runtime='local' option
-        :param container_runtime: The container runtime to use, can be 'docker', 'singularity' or 'local'
+        :param container_runtime: The container runtime to use, can be 'docker', 'singularity', 'pypi', or 'local'
         """
         if automl_id not in AUTOML_DOCKER_IMAGES:
             raise ValueError('Unknown "%s" AutoML, you should choose among: [%s]' % (automl_id, ', '.join(AUTOML_DOCKER_IMAGES)))
@@ -223,6 +265,8 @@ class AutoML:
             self.container_runtime = DockerRuntime
         elif container_runtime == 'singularity':
             self.container_runtime = SingularityRuntime
+        elif container_runtime == 'pypi':
+            self.container_runtime = PypiRuntime
         elif container_runtime == 'local':
             self.container_runtime = LocalRuntime
         else:
