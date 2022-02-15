@@ -2,8 +2,8 @@
 
 * On `devel` branch:
   * `git pull` to make sure everything is in sync with remote origin.
-  * Change the version in `setup.py` to the new version, e.g., `2.0.0`.
-  * In `CHANGELOG.md`, change the first entry, e.g. `2.0.0.dev0 (yyyy-mm-dd)` to the to-be-released version and date.
+  * Change the version in `setup.py` to the new version, e.g., `2.0.0` (using the format MAJOR.MINOR.PATCH).
+  * In `CHANGELOG.md`, change the first version, e.g. `2.0.0.dev0 (yyyy-mm-dd)` to the to-be-released version and date.
   * Commit with message `Bump version for release`.
   * `git push`
 * On `master` branch:
