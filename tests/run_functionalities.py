@@ -23,7 +23,7 @@ automl.search_pipelines(train_dataset, time_bound=1, blacklist_primitives=blackl
 automl.end_session()
 
 
-# Run without container
-automl = AutoML(output_path, 'AlphaD3M', 'local')
+# Run using PyPI installation
+automl = AutoML(output_path, 'AlphaD3M', 'pypi')
 automl.search_pipelines(train_dataset, time_bound=1)
 automl.end_session()
