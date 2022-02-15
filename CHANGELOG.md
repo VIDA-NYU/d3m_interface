@@ -1,7 +1,7 @@
 Changelog
 =========
 
-0.5.dev.0 (yyyy-mm-dd)
+0.5.0.dev0 (yyyy-mm-dd)
 -----------------------
 
 
