@@ -47,8 +47,9 @@ class DockerRuntime:
     def default_port(cls):
         return random.randint(32769, 65535)
 
-    def __init__(self, image, dataset, output_folder, port=45042):
+    def __init__(self, image, dataset, output_folder, port=45042, verbose=False):
         self.name = 'automl-container-%s' % port
+
         process_returncode = 0
         while process_returncode == 0:
             # Force to stop the docker container
@@ -58,6 +59,11 @@ class DockerRuntime:
             time.sleep(2)
 
         logger.info("Creating Docker container %s...", self.name)
+
+        stdout, stderr = subprocess.DEVNULL, subprocess.STDOUT
+        if verbose:
+            stdout, stderr = None, None
+
         self.proc = subprocess.Popen(
             [
                 'docker', 'run', '--rm',
@@ -71,8 +77,7 @@ class DockerRuntime:
                 '-v', '%s:/output' % fix_path_for_docker(output_folder),
                 image,
             ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.STDOUT
+            stdout=stdout, stderr=stderr
         )
         atexit.register(subprocess.call, ['docker', 'stop', self.name], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
 
@@ -100,7 +105,7 @@ class SingularityRuntime:
     def default_port(cls):
         return 45042
 
-    def __init__(self, image, dataset, output_folder, port=45042):
+    def __init__(self, image, dataset, output_folder, port=45042, verbose=False):
         if port != 45042:
             raise ValueError(
                 "There is currently no way to change the port used by the "
@@ -115,6 +120,11 @@ class SingularityRuntime:
 
         os.makedirs(output_folder, exist_ok=True)
         logger.info("Creating Singularity instance...")
+
+        stdout, stderr = subprocess.DEVNULL, subprocess.STDOUT
+        if verbose:
+            stdout, stderr = None, None
+
         process = subprocess.Popen(
             [
                 'singularity', 'instance', 'start',
@@ -148,6 +158,7 @@ class SingularityRuntime:
                 '--bind', '%s:/output' % output_folder,
                 'instance://ta2_container',
             ],
+            stdout=stdout, stderr=stderr
         )
 
     def run_command(self, args):
@@ -171,7 +182,7 @@ class LocalRuntime:
     def default_port(cls):
         return 45042
 
-    def __init__(self, image, dataset, output_folder, port=45042):
+    def __init__(self, image, dataset, output_folder, port=45042, verbose=False):
         if port != 45042:
             raise ValueError(
                 "There is currently no way to change the port used by the "
@@ -180,9 +191,13 @@ class LocalRuntime:
 
         self.dataset_in_container = dataset
         self.output_in_container = output_folder
-
         os.makedirs(output_folder, exist_ok=True)
         logger.info("Starting process...")
+
+        stdout, stderr = subprocess.DEVNULL, subprocess.STDOUT
+        if verbose:
+            stdout, stderr = None, None
+
         self.proc = subprocess.Popen(
             ['eval.sh'],
             env=dict(
@@ -192,6 +207,7 @@ class LocalRuntime:
                 D3MOUTPUTDIR='/output',
                 D3MSTATICDIR='/output',  # TODO: Temporal assignment for D3MSTATICDIR env variable
             ),
+            stdout=stdout, stderr=stderr
         )
 
     def run_command(self, args):
@@ -213,26 +229,26 @@ class PypiRuntime:
     def default_port(cls):
         return 45042
 
-    def __init__(self, image, dataset, output_folder, port=45042):
+    def __init__(self, image, dataset, output_folder, port=45042, verbose=False):
         if port != 45042:
             raise ValueError(
                 "There is currently no way to change the port used by the "
                 + "AutoML system when using local execution"
             )
 
+        if is_port_in_use(port):
+            raise RuntimeError('Port %d is already used' % port)
+
         self.dataset_in_container = dataset
         self.output_in_container = output_folder
-
         os.makedirs(output_folder, exist_ok=True)
         logger.info("Starting process...")
 
-        if is_port_in_use(port):
-            raise RuntimeError('Port %d is being used' % port)
+        stdout, stderr = subprocess.DEVNULL, subprocess.STDOUT
+        if verbose:
+            stdout, stderr = None, None
 
-        self.proc = subprocess.Popen(
-            ['alphad3m_serve', output_folder, str(port)],
-            stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
-        )
+        self.proc = subprocess.Popen(['alphad3m_serve', output_folder, str(port)], stdout=stdout, stderr=stderr)
 
     def run_command(self, args):
         process = subprocess.Popen(args, stderr=subprocess.PIPE)
@@ -249,13 +265,15 @@ class PypiRuntime:
 
 
 class AutoML:
-    def __init__(self, output_folder, automl_id='AlphaD3M', container_runtime='docker', grpc_port=None):
+    def __init__(self, output_folder, automl_id='AlphaD3M', container_runtime='docker', grpc_port=None, verbose=False):
         """Create/instantiate an AutoML object
 
         :param output_folder: Path to the output directory
         :param automl_id: AutoML system name to be used. AutoML systems available are: 'AlphaD3M', 'AutonML'. Currently
-        only AlphaD3M is available for the container_runtime='local' option
+        only AlphaD3M is available for the container_runtime='pypi' option
         :param container_runtime: The container runtime to use, can be 'docker', 'singularity', 'pypi', or 'local'
+        :param grpc_port: Port to be used by GRPC
+        :param verbose: Whether or not to show all the logs from AutoML systems
         """
         if automl_id not in AUTOML_DOCKER_IMAGES:
             raise ValueError('Unknown "%s" AutoML, you should choose among: [%s]' % (automl_id, ', '.join(AUTOML_DOCKER_IMAGES)))
@@ -280,6 +298,7 @@ class AutoML:
         self.dataset = None
         self.problem_config = None
         self.port = grpc_port
+        self.verbose = verbose
 
     def search_pipelines(self, dataset, time_bound, time_bound_run=5, target=None, metric=None, task_keywords=None,
                          method='holdout', stratified=True, shuffle=True, folds=10, train_ratio=0.70, random_seed=0,
@@ -798,6 +817,7 @@ class AutoML:
             self.dataset,
             self.output_folder,
             self.port,
+            self.verbose
         )
 
         time.sleep(4)  # Wait for TA2
