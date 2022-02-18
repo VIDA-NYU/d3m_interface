@@ -1,8 +1,15 @@
 Changelog
 =========
 
-0.5.0.dev0 (yyyy-mm-dd)
+0.5.0 (2022-02-18)
 -----------------------
+* Added verbose parameter to show/hide logs from AutoMLs.
+* Added CHANGELOG file.
+* Added instructions for releases.
+* Add destructor to runtime objects.
+* Add support to load static_files folder
+* Add new examples for text, image and time-series tasks.
+* Avoid errors when imported from non-jupyter environments.
 
 
 0.4.1 (2022-02-11)
