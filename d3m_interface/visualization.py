@@ -1,7 +1,4 @@
 import datamart_profiler
-import DataProfileViewer
-import PipelineProfiler
-import VisualTextAnalyzer
 import numpy as np
 import pandas as pd
 from os.path import join
@@ -10,8 +7,12 @@ from d3m_interface.data_converter import create_artificial_d3mtest
 from lime.lime_text import LimeTextExplainer
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 
+# PipelineProfiler, DataProfileViewer and VisualTextAnalyzer are imported inside of functions because they raise errors
+# when are running from non-Jupyter/Colab environments (e.g. terminal scripts).
+
 
 def plot_metadata(dataset_path):
+    import DataProfileViewer
     with silence():
         metadata = datamart_profiler.process_dataset(dataset_path, plots=True, include_sample=True)
 
@@ -19,10 +20,12 @@ def plot_metadata(dataset_path):
 
 
 def plot_comparison_pipelines(pipelines):
+    import PipelineProfiler
     PipelineProfiler.plot_pipeline_matrix(pipelines)
 
 
 def plot_text_summary(words_entities):
+    import VisualTextAnalyzer
     VisualTextAnalyzer.plot_text_summary(words_entities=words_entities)
 
 
@@ -51,6 +54,7 @@ def plot_text_explanation(automl, train_path, artificial_test_path, model_id, in
 
 
 def get_words_entities(dataset, text_column, label_column, positive_label, negative_label):
+    import VisualTextAnalyzer
     processed_data = VisualTextAnalyzer.get_words_entities(dataset, category_column=label_column, text_column=text_column,
                                                            positive_label=positive_label, negative_label=negative_label)
     return processed_data

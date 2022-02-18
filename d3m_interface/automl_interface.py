@@ -47,7 +47,8 @@ class DockerRuntime:
     def default_port(cls):
         return random.randint(32769, 65535)
 
-    def __init__(self, image, dataset, output_folder, port=45042, verbose=False):
+    def __init__(self, automl_id, dataset, output_folder, port=45042, verbose=False):
+        image = AUTOML_DOCKER_IMAGES[automl_id]
         self.name = 'automl-container-%s' % port
 
         process_returncode = 0
@@ -79,7 +80,8 @@ class DockerRuntime:
             ],
             stdout=stdout, stderr=stderr
         )
-        atexit.register(subprocess.call, ['docker', 'stop', self.name], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+
+        atexit.register(self.close)
 
     def run_command(self, args):
         cmd = ['docker', 'exec', self.name]
@@ -105,7 +107,8 @@ class SingularityRuntime:
     def default_port(cls):
         return 45042
 
-    def __init__(self, image, dataset, output_folder, port=45042, verbose=False):
+    def __init__(self, automl_id, dataset, output_folder, port=45042, verbose=False):
+        image = AUTOML_DOCKER_IMAGES[automl_id]
         if port != 45042:
             raise ValueError(
                 "There is currently no way to change the port used by the "
@@ -161,6 +164,8 @@ class SingularityRuntime:
             stdout=stdout, stderr=stderr
         )
 
+        atexit.register(self.close)
+
     def run_command(self, args):
         cmd = ['singularity', 'exec', 'instance://ta2_container']
         cmd.extend(args)
@@ -182,7 +187,7 @@ class LocalRuntime:
     def default_port(cls):
         return 45042
 
-    def __init__(self, image, dataset, output_folder, port=45042, verbose=False):
+    def __init__(self, automl_id, dataset, output_folder, port=45042, verbose=False):
         if port != 45042:
             raise ValueError(
                 "There is currently no way to change the port used by the "
@@ -210,6 +215,8 @@ class LocalRuntime:
             stdout=stdout, stderr=stderr
         )
 
+        atexit.register(self.close)
+
     def run_command(self, args):
         process = subprocess.Popen(args, stderr=subprocess.PIPE)
         _, stderr = process.communicate()
@@ -230,7 +237,7 @@ class PypiRuntime:
     def default_port(cls):
         return 45042
 
-    def __init__(self, image, dataset, output_folder, port=45042, verbose=False):
+    def __init__(self, automl_id, dataset, output_folder, port=45042, verbose=False):
         if port != 45042:
             raise ValueError(
                 "There is currently no way to change the port used by the "
@@ -238,7 +245,8 @@ class PypiRuntime:
             )
 
         if is_port_in_use(port):
-            raise RuntimeError('Port %d is already used' % port)
+            logger.warning('Port %d is already used. Reusing that session. Use the "end_session()" method to end '
+                           'sessions safely' % port)
 
         self.dataset_in_container = dataset
         self.output_in_container = output_folder
@@ -249,7 +257,13 @@ class PypiRuntime:
         if verbose:
             stdout, stderr = None, None
 
-        self.proc = subprocess.Popen(['alphad3m_serve', output_folder, str(port)], stdout=stdout, stderr=stderr)
+        os.environ['D3MOUTPUTDIR'] = output_folder
+        os.environ['D3MSTATICDIR'] = output_folder  # TODO: Temporal assignment for D3MSTATICDIR env variable
+        os.environ['D3MPORT'] = str(port)
+        # TODO: Every AutoML should have an entry point like: '[id_automl]_serve' (We need to document it)
+        entry_point = '%s_serve' % automl_id.lower()
+        self.proc = subprocess.Popen([entry_point], stdout=stdout, stderr=stderr)
+        atexit.register(self.close)
 
     def run_command(self, args):
         process = subprocess.Popen(args, stderr=subprocess.PIPE)
@@ -303,7 +317,7 @@ class AutoML:
         self.verbose = verbose
 
     def search_pipelines(self, dataset, time_bound, time_bound_run=5, target=None, metric=None, task_keywords=None,
-                         method='holdout', stratified=True, shuffle=True, folds=10, train_ratio=0.70, random_seed=0,
+                         method='holdout', stratified=False, shuffle=True, folds=10, train_ratio=0.70, random_seed=0,
                          exclude_primitives=None, include_primitives=None, **kwargs):
         """Perform the search of pipelines
 
@@ -563,6 +577,7 @@ class AutoML:
         self.ta2.run_command([
             'python3', '-m', 'd3m',
             'runtime',
+            '--volumes', self.ta2.output_in_container,  # TODO: Temporal assignment for D3MSTATICDIR
             '--context', 'TESTING',
             '--random-seed', '0',
             'fit-score',
@@ -766,7 +781,7 @@ class AutoML:
                     code += f""")\n"""
 
             else:
-                # TODO In the future we should be able to handle subpipelines
+                # TODO: In the future we should be able to handle subpipelines
                 break
             if prev_step:
                 if 'arguments' in pipeline_step:
@@ -815,14 +830,14 @@ class AutoML:
         logger.info('Initializing %s AutoML...', self.automl_id)
 
         self.ta2 = self.container_runtime(
-            AUTOML_DOCKER_IMAGES[self.automl_id],
+            self.automl_id,
             self.dataset,
             self.output_folder,
             self.port,
             self.verbose
         )
 
-        time.sleep(4)  # Wait for TA2
+        time.sleep(4)  # Wait for AutoML
 
         host = 'localhost'
         if os.environ.get('DOCKER_HOST'):

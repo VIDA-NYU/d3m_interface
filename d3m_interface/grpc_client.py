@@ -211,3 +211,6 @@ class GrpcClient:
 
     def stop_search(self, search_id):
         self.core.StopSearchSolutions(pb_core.StopSearchSolutionsRequest(search_id=search_id))
+
+    def end_search(self, search_id):
+        self.core.EndSearchSolutions(pb_core.EndSearchSolutionsRequest(search_id=search_id))
