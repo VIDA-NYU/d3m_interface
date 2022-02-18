@@ -98,6 +98,8 @@ class DockerRuntime:
     def close(self):
         subprocess.call(['docker', 'stop', self.name], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
 
+    __del__ = close
+
 
 class SingularityRuntime:
     dataset_in_container = '/input/dataset'
@@ -181,6 +183,8 @@ class SingularityRuntime:
     def close(self):
         subprocess.call(['singularity', 'instance', 'stop', 'ta2_container'])
 
+    __del__ = close
+
 
 class LocalRuntime:
     @classmethod
@@ -231,6 +235,8 @@ class LocalRuntime:
                 self.proc.kill()
             self.proc = None
 
+    __del__ = close
+
 
 class PypiRuntime:
     @classmethod
@@ -278,6 +284,8 @@ class PypiRuntime:
             if self.proc.wait(10) is None:
                 self.proc.kill()
             self.proc = None
+
+    __del__ = close
 
 
 class AutoML:
