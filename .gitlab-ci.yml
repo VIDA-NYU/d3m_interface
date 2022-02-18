@@ -23,6 +23,6 @@ test:
     - pip install -e .
     - curl -sLo /tmp/baseball.tar.gz https://datasets.datadrivendiscovery.org/d3m/datasets/-/archive/master/datasets-master.tar.gz?path=seed_datasets_current/185_baseball_MIN_METADATA
     - tar zxf /tmp/baseball.tar.gz --strip-components=2
-    - cat examples/using_d3m_datasets.ipynb | sed "s#output_path = '[^']*'#output_path = '$(pwd)/ci_output'#" | sed "s#train_dataset = '[^']*'#train_dataset = '$(pwd)/185_baseball_MIN_METADATA/TRAIN'#" | sed "s#test_dataset = '[^']*'#test_dataset = '$(pwd)/185_baseball_MIN_METADATA/TEST'#" | sed "s#score_dataset = '[^']*'#score_dataset = '$(pwd)/185_baseball_MIN_METADATA/SCORE'#" >examples/using_d3m_datasets.ci.ipynb
+    - cat examples/tabular_classification_d3m_datasets.ipynb | sed "s#output_path = '[^']*'#output_path = '$(pwd)/ci_output'#" | sed "s#train_dataset = '[^']*'#train_dataset = '$(pwd)/185_baseball_MIN_METADATA/TRAIN'#" | sed "s#test_dataset = '[^']*'#test_dataset = '$(pwd)/185_baseball_MIN_METADATA/TEST'#" | sed "s#score_dataset = '[^']*'#score_dataset = '$(pwd)/185_baseball_MIN_METADATA/SCORE'#" >examples/tabular_classification_d3m_datasets.ci.ipynb
     # Can't call `jupyter nbconvert`, we need logging
-    - python3 tests/run_notebook.py examples/using_d3m_datasets.ci.ipynb
+    - python3 tests/run_notebook.py examples/tabular_classification_d3m_datasets.ci.ipynb

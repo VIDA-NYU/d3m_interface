@@ -11,8 +11,8 @@ using PIP:
     $ pip install d3m-interface
 
 
-Using the AutoML systems via containers
----------------------------------------
+AutoML systems via containers
+------------------------------
 
 For this option, you need to have `Docker <https://docs.docker.com/get-docker/>`__ or `Singularity <https://sylabs.io/guides/3.5/user-guide/introduction.html>`__
 installed on your operating system.
@@ -35,10 +35,10 @@ download it for AlphaD3M using:
     $ docker pull registry.gitlab.com/vida-nyu/d3m/alphad3m:master
 
 
-Using the AutoML systems via PyPI
-----------------------------------
-For this option, you don't need to install neither Docker nor Singularity. You need to install the PyPI
-version of the AutoML system and primitives.
+AutoML systems via PyPI
+------------------------
+For this option, you don't need to install neither Docker nor Singularity.  Once the installation of `d3m-interface`
+is completed, you need to install the PyPI version of the AutoML system and primitives.
 
 You can install the latest stable version of AlphaD3M from `PyPI <https://pypi.org/project/alpha/>`__ using PIP:
 
@@ -52,10 +52,6 @@ To install the primitives available on PyPI, run this command:
 ::
 
      $ pip install d3m-common-primitives d3m-sklearn-wrap dsbox-corex dsbox-primitives sri-d3m
-
-
-If you have issues with the installation of 'opencv-python-headless' (dependency of d3m-common-primitives).
-We would recommend you to install it directly from its `Python wheels <https://pypi.org/project/opencv-python-headless/4.5.4.58/#files>`__.
 
 
 Currently, this option only has support for classification and regression tabular problems. It works with Python 3.8
