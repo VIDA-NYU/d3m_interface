@@ -218,10 +218,11 @@ class LocalRuntime:
             raise RuntimeError(stderr.decode())
 
     def close(self):
-        self.proc.terminate()
-        if self.proc.wait(10) is None:
-            self.proc.kill()
-        self.proc = None
+        if self.proc is not None:
+            self.proc.terminate()
+            if self.proc.wait(10) is None:
+                self.proc.kill()
+            self.proc = None
 
 
 class PypiRuntime:
@@ -258,10 +259,11 @@ class PypiRuntime:
             raise RuntimeError(stderr.decode())
 
     def close(self):
-        self.proc.terminate()
-        if self.proc.wait(10) is None:
-            self.proc.kill()
-        self.proc = None
+        if self.proc is not None:
+            self.proc.terminate()
+            if self.proc.wait(10) is None:
+                self.proc.kill()
+            self.proc = None
 
 
 class AutoML:
