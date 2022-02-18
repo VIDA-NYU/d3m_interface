@@ -241,15 +241,9 @@ class LocalRuntime:
 class PypiRuntime:
     @classmethod
     def default_port(cls):
-        return 45042
+        return random.randint(32769, 65535)
 
     def __init__(self, automl_id, dataset, output_folder, port=45042, verbose=False):
-        if port != 45042:
-            raise ValueError(
-                "There is currently no way to change the port used by the "
-                + "AutoML system when using local execution"
-            )
-
         if is_port_in_use(port):
             logger.warning('Port %d is already used. Reusing that session. Use the "end_session()" method to end '
                            'sessions safely' % port)
