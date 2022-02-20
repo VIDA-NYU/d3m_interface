@@ -1,11 +1,31 @@
+import os
 import setuptools
 
-with open('README.md', 'r') as fh:
-    long_description = fh.read()
+package_name = 'd3m_interface'
+
+
+def read_readme():
+    with open(os.path.join(os.path.dirname(__file__), 'README.md'), encoding='utf8') as file:
+        return file.read()
+
+
+def read_version():
+    module_path = os.path.join(package_name, '__init__.py')
+    with open(module_path) as file:
+        for line in file:
+            parts = line.strip().split(' ')
+            if parts and parts[0] == '__version__':
+                return parts[-1].strip("'")
+
+    raise KeyError('Version not found in {0}'.format(module_path))
+
+
+long_description = read_readme()
+version = read_version()
 
 setuptools.setup(
-    name='d3m_interface',
-    version='0.6.0.dev0',
+    name=package_name,
+    version=version,
     author='Roque Lopez, Remi Rampin, Sonia Castelo',
     author_email='rlopez@nyu.edu, remi.rampin@nyu.edu, s.castelo@nyu.edu',
     description='Library to use D3M AutoML Systems',
@@ -32,6 +52,5 @@ setuptools.setup(
         'visual-text-explorer>=0.1,<2',
     ],
     python_requires='>=3.6',
-    include_package_data=True,
-    package_data={'d3m_interface': ['resource/*.json']}
+    include_package_data=True
 )
