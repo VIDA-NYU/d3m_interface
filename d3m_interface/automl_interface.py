@@ -288,7 +288,7 @@ class AutoML:
 
         :param output_folder: Path to the output directory
         :param automl_id: AutoML system name to be used. AutoML systems available are: 'AlphaD3M', 'AutonML'. Currently
-        only AlphaD3M is available for the container_runtime='pypi' option
+            only AlphaD3M is available for the container_runtime='pypi' option
         :param container_runtime: The container runtime to use, can be 'docker', 'singularity', 'pypi', or 'local'
         :param grpc_port: Port to be used by GRPC
         :param verbose: Whether or not to show all the logs from AutoML systems
@@ -654,6 +654,7 @@ class AutoML:
 
     def get_best_pipeline_id(self):
         """Get the id of the best pipeline
+
         :returns: The id of the best pipeline
         """
         best_pipeline_id = max(self.pipelines.values(), key=lambda x: x['normalized_score'])['id']
@@ -662,6 +663,7 @@ class AutoML:
 
     def list_primitives(self):
         """Get a list of primitives used by the AutoML system
+        
         :returns: List of primitives used by the AutoML system
         """
         primitives = self.ta3.list_primitives()
