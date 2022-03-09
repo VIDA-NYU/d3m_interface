@@ -56,3 +56,5 @@ To install the primitives available on PyPI, run this command:
 
 Currently, this version has support for classification, regression and forecasting tasks (using a limited set of primitives).
 It supports tabular, text and image data types. This package works with Python 3.8 in Linux and Mac.
+
+On non-Linux platforms, you will need swig to compile pyrfr. You can obtain swig from `homebrew <https://formulae.brew.sh/formula/swig@3>`__, `anaconda <https://anaconda.org/anaconda/swig>`__, or `the swig website <http://www.swig.org/download.html>`__.
