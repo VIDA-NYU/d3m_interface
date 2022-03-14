@@ -29,7 +29,7 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s', str
 logger = logging.getLogger(__name__)
 
 
-AUTOML_DOCKER_IMAGES = {'AlphaD3M': 'registry.gitlab.com/vida-nyu/d3m/alphad3m:devel',
+AUTOML_DOCKER_IMAGES = {'AlphaD3M': 'registry.gitlab.com/vida-nyu/d3m/alphad3m:latest',
                         'AutonML': 'registry.gitlab.com/sray/cmu-ta2:latest'}
 
 IGNORE_SUMMARY_PRIMITIVES = {'d3m.primitives.data_transformation.construct_predictions.Common',
@@ -50,6 +50,12 @@ class DockerRuntime:
     def __init__(self, automl_id, dataset, output_folder, port=45042, verbose=False):
         image = AUTOML_DOCKER_IMAGES[automl_id]
         self.name = 'automl-container-%s' % port
+
+        process_returncode = subprocess.call(['docker', 'inspect', '--type=image', image],
+                                             stdout=subprocess.DEVNULL,
+                                             stderr=subprocess.STDOUT)
+        if process_returncode != 0:
+            raise ValueError('Image "%s" does not exist, please download it.' % image)
 
         process_returncode = 0
         while process_returncode == 0:
@@ -111,6 +117,7 @@ class SingularityRuntime:
 
     def __init__(self, automl_id, dataset, output_folder, port=45042, verbose=False):
         image = AUTOML_DOCKER_IMAGES[automl_id]
+
         if port != 45042:
             raise ValueError(
                 "There is currently no way to change the port used by the "
@@ -119,7 +126,7 @@ class SingularityRuntime:
 
         process_returncode = 0
         while process_returncode == 0:
-            # Force to stop the docker container
+            # Force to stop the singularity container
             process_returncode = subprocess.call(['singularity', 'instance', 'stop', 'ta2_container'])
             time.sleep(2)
 
