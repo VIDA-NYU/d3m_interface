@@ -5,7 +5,7 @@ D3M Interface Library
 Library to use D3M AutoML systems. This repository contains an implementation to integrate 
  D3M AutoML systems with Jupyter Notebooks. 
 
-[Documentation is available here](https://d3m-interface.readthedocs.io/en/latest/)
+[Documentation is available here.](https://d3m-interface.readthedocs.io/)
 
 ## Installation
 
