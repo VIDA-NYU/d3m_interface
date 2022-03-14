@@ -30,12 +30,3 @@ You can find the source code on GitLab: https://gitlab.com/ViDA-NYU/d3m/d3m_inte
    how-to
    examples
    api
-
-
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
