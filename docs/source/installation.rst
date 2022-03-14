@@ -27,12 +27,21 @@ can see `here <https://gitlab.com/ViDA-NYU/d3m/alphad3m/-/blob/master/Dockerfile
 For the other D3M AutoML systems, you can find more information :doc:`here <automls_supported>`.
 
 
-Once the installation of `d3m-interface` on Windows is completed, you need to download manually the Docker image of the D3M AutoML system. You can
-download it for AlphaD3M using:
+Once the installation is completed, you need to pull manually the Docker image of the D3M AutoML system.
+
+For AlphaD3M run:
 
 ::
 
-    $ docker pull registry.gitlab.com/vida-nyu/d3m/alphad3m:master
+   $ # for docker
+   $ docker pull registry.gitlab.com/vida-nyu/d3m/alphad3m:latest
+
+or
+
+::
+
+   $ # for singularity
+   $ singularity pull docker://registry.gitlab.com/vida-nyu/d3m/alphad3m:latest
 
 
 AutoML systems via PyPI
@@ -40,7 +49,7 @@ AutoML systems via PyPI
 For this option, you don't need to install neither Docker nor Singularity.  Once the installation of `d3m-interface`
 is completed, you need to install the PyPI version of the AutoML system and primitives.
 
-You can install the latest stable version of AlphaD3M from `PyPI <https://pypi.org/project/alpha/>`__ using PIP:
+For AlphaD3M run:
 
 ::
 
