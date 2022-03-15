@@ -24,5 +24,6 @@ test:
     - curl -sLo /tmp/baseball.tar.gz https://datasets.datadrivendiscovery.org/d3m/datasets/-/archive/master/datasets-master.tar.gz?path=seed_datasets_current/185_baseball_MIN_METADATA
     - tar zxf /tmp/baseball.tar.gz --strip-components=2
     - cat tests/test_notebook.ipynb | sed "s#output_path = '[^']*'#output_path = '$(pwd)/ci_output'#" | sed "s#train_dataset = '[^']*'#train_dataset = '$(pwd)/185_baseball_MIN_METADATA/TRAIN'#" | sed "s#test_dataset = '[^']*'#test_dataset = '$(pwd)/185_baseball_MIN_METADATA/TEST'#" | sed "s#score_dataset = '[^']*'#score_dataset = '$(pwd)/185_baseball_MIN_METADATA/SCORE'#" >tests/test_notebook.ci.ipynb
+    - docker pull registry.gitlab.com/vida-nyu/d3m/alphad3m:latest
     # Can't call `jupyter nbconvert`, we need logging
     - python3 tests/run_notebook.py tests/test_notebook.ci.ipynb
