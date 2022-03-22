@@ -42,12 +42,13 @@ IGNORE_SUMMARY_PRIMITIVES = {'d3m.primitives.data_transformation.construct_predi
 class DockerRuntime:
     dataset_in_container = '/input/dataset'
     output_in_container = '/output'
+    static_in_container = '/static'
 
     @classmethod
     def default_port(cls):
         return random.randint(32769, 65535)
 
-    def __init__(self, automl_id, dataset, output_folder, port=45042, verbose=False):
+    def __init__(self, automl_id, dataset, output_folder, resource_folder, port=45042, verbose=False):
         image = AUTOML_DOCKER_IMAGES[automl_id]
         self.name = 'automl-container-%s' % port
 
@@ -79,9 +80,10 @@ class DockerRuntime:
                 '-e', 'D3MRUN=ta2ta3',
                 '-e', 'D3MINPUTDIR=/input',
                 '-e', 'D3MOUTPUTDIR=/output',
-                '-e', 'D3MSTATICDIR=/output',  # TODO: Temporal assignment for D3MSTATICDIR env variable
+                '-e', 'D3MSTATICDIR=/static',
                 '-v', '%s:/input/dataset/' % fix_path_for_docker(dataset),
                 '-v', '%s:/output' % fix_path_for_docker(output_folder),
+                '-v', '%s:/static' % fix_path_for_docker(resource_folder),
                 image,
             ],
             stdout=stdout, stderr=stderr
@@ -110,12 +112,13 @@ class DockerRuntime:
 class SingularityRuntime:
     dataset_in_container = '/input/dataset'
     output_in_container = '/output'
+    static_in_container = '/static'
 
     @classmethod
     def default_port(cls):
         return 45042
 
-    def __init__(self, automl_id, dataset, output_folder, port=45042, verbose=False):
+    def __init__(self, automl_id, dataset, output_folder, resource_folder, port=45042, verbose=False):
         image = AUTOML_DOCKER_IMAGES[automl_id]
 
         if port != 45042:
@@ -144,9 +147,10 @@ class SingularityRuntime:
                 '--env', 'D3MRUN=ta2ta3',
                 '--env', 'D3MINPUTDIR=/input',
                 '--env', 'D3MOUTPUTDIR=/output',
-                '--env', 'D3MSTATICDIR=/output',  # TODO: Temporal assignment for D3MSTATICDIR env variable
+                '--env', 'D3MSTATICDIR=/static',
                 '--bind', '%s:/input/dataset/' % dataset,
                 '--bind', '%s:/output' % output_folder,
+                '--bind', '%s:/static' % resource_folder,
                 'docker://' + image,
                 'ta2_container',
             ],
@@ -165,9 +169,10 @@ class SingularityRuntime:
                 '--env', 'D3MRUN=ta2ta3',
                 '--env', 'D3MINPUTDIR=/input',
                 '--env', 'D3MOUTPUTDIR=/output',
-                '--env', 'D3MSTATICDIR=/output',  # TODO: Temporal assignment for D3MSTATICDIR env variable
+                '--env', 'D3MSTATICDIR=/static',
                 '--bind', '%s:/input/dataset/' % dataset,
                 '--bind', '%s:/output' % output_folder,
+                '--bind', '%s:/static' % resource_folder,
                 'instance://ta2_container',
             ],
             stdout=stdout, stderr=stderr
@@ -198,7 +203,7 @@ class LocalRuntime:
     def default_port(cls):
         return 45042
 
-    def __init__(self, automl_id, dataset, output_folder, port=45042, verbose=False):
+    def __init__(self, automl_id, dataset, output_folder, resource_folder, port=45042, verbose=False):
         if port != 45042:
             raise ValueError(
                 "There is currently no way to change the port used by the "
@@ -207,6 +212,7 @@ class LocalRuntime:
 
         self.dataset_in_container = dataset
         self.output_in_container = output_folder
+        self.static_in_container = resource_folder
         os.makedirs(output_folder, exist_ok=True)
         logger.info("Starting process...")
 
@@ -221,7 +227,7 @@ class LocalRuntime:
                 D3MRUN='ta2ta3',
                 D3MINPUTDIR='/input',
                 D3MOUTPUTDIR='/output',
-                D3MSTATICDIR='/output',  # TODO: Temporal assignment for D3MSTATICDIR env variable
+                D3MSTATICDIR='/static',
             ),
             stdout=stdout, stderr=stderr
         )
@@ -250,13 +256,14 @@ class PypiRuntime:
     def default_port(cls):
         return random.randint(32769, 65535)
 
-    def __init__(self, automl_id, dataset, output_folder, port=45042, verbose=False):
+    def __init__(self, automl_id, dataset, output_folder, resource_folder, port=45042, verbose=False):
         if is_port_in_use(port):
             logger.warning('Port %d is already used. Reusing that session. Use the "end_session()" method to end '
                            'sessions safely' % port)
 
         self.dataset_in_container = dataset
         self.output_in_container = output_folder
+        self.static_in_container = resource_folder
         os.makedirs(output_folder, exist_ok=True)
         logger.info("Starting process...")
 
@@ -265,7 +272,7 @@ class PypiRuntime:
             stdout, stderr = None, None
 
         os.environ['D3MOUTPUTDIR'] = output_folder
-        os.environ['D3MSTATICDIR'] = output_folder  # TODO: Temporal assignment for D3MSTATICDIR env variable
+        os.environ['D3MSTATICDIR'] = resource_folder
         os.environ['D3MPORT'] = str(port)
         # TODO: Every AutoML should have an entry point like: '[id_automl]_serve' (We need to document it)
         entry_point = '%s_serve' % automl_id.lower()
@@ -290,12 +297,14 @@ class PypiRuntime:
 
 
 class AutoML:
-    def __init__(self, output_folder, automl_id='AlphaD3M', container_runtime='docker', grpc_port=None, verbose=False):
+    def __init__(self, output_folder, automl_id='AlphaD3M', container_runtime='docker', resource_folder=None, grpc_port=None, verbose=False):
         """Create/instantiate an AutoML object
 
         :param output_folder: Path to the output directory
         :param automl_id: AutoML system name to be used. AutoML systems available are: 'AlphaD3M', 'AutonML'. Currently
             only AlphaD3M is available for the container_runtime='pypi' option
+        :param resource_folder: Path to the directory where the resources are stored. This is needed only for some
+            primitives that use pre-trained models, databases ,etc.
         :param container_runtime: The container runtime to use, can be 'docker', 'singularity', 'pypi', or 'local'
         :param grpc_port: Port to be used by GRPC
         :param verbose: Whether or not to show all the logs from AutoML systems
@@ -304,6 +313,8 @@ class AutoML:
             raise ValueError('Unknown "%s" AutoML, you should choose among: [%s]' % (automl_id, ', '.join(AUTOML_DOCKER_IMAGES)))
 
         self.output_folder = output_folder
+        self.resource_folder = resource_folder if resource_folder is not None else output_folder
+
         if container_runtime == 'docker':
             self.container_runtime = DockerRuntime
         elif container_runtime == 'singularity':
@@ -586,7 +597,7 @@ class AutoML:
         self.ta2.run_command([
             'python3', '-m', 'd3m',
             'runtime',
-            '--volumes', self.ta2.output_in_container,  # TODO: Temporal assignment for D3MSTATICDIR
+            '--volumes', self.ta2.static_in_container,
             '--context', 'TESTING',
             '--random-seed', '0',
             'fit-score',
@@ -844,6 +855,7 @@ class AutoML:
             self.automl_id,
             self.dataset,
             self.output_folder,
+            self.resource_folder,
             self.port,
             self.verbose
         )
