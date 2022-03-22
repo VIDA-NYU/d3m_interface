@@ -1,8 +1,12 @@
 Changelog
 =========
 
-0.6.0.dev0 (yyyy-mm-dd)
-------------------------
+0.6.0 (2022-03-21)
+--------------------
+* Read version from \_\_init\_\_.
+* Remove "Indices and tables" section from documentation.
+* Verify if image is downloaded before running the search.
+* Fix multiple issues about documentation.
 
 
 0.5.0 (2022-02-18)

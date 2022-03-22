@@ -1,3 +1,3 @@
-__version__ = '0.6.0.dev0'
+__version__ = '0.6.0'
 
 from .automl_interface import AutoML
