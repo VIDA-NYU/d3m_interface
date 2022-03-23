@@ -19,7 +19,7 @@
   
 * On `devel` branch:
   * `git merge master` to make sure `devel` is always on top of `master`.
-  * Change the version in `setup.py` appending `.dev0` to the future version, e.g. `2.1.0.dev0`.
+  * Change the version in `d3m_interface/__init__.py` appending `.dev0` to the future version, e.g. `2.1.0.dev0`.
   * Add a new empty version on top of `CHANGELOG.md`, e.g. `2.1.0.dev0 (yyyy-mm-dd)`.
   * Commit with message `Bump version for development`.
   * `git push`
