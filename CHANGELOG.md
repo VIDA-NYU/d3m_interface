@@ -1,8 +1,9 @@
 Changelog
 =========
 
-0.8.0.dev0 (yyyy-mm-dd)
------------------------
+0.7.1 (2022-03-29)
+-------------------
+* Unlock d3m and d3m-automl-rpc dependencies.
 
 
 0.7.0 (2022-03-22)
