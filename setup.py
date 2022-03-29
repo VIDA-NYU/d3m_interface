@@ -28,6 +28,8 @@ setuptools.setup(
     version=version,
     author='Roque Lopez, Remi Rampin, Sonia Castelo',
     author_email='rlopez@nyu.edu, remi.rampin@nyu.edu, s.castelo@nyu.edu',
+    maintainer='Roque Lopez, Remi Rampin',
+    maintainer_email='rlopez@nyu.edu, remi.rampin@nyu.edu',
     description='Library to use D3M AutoML Systems',
     long_description=long_description,
     long_description_content_type='text/markdown',
