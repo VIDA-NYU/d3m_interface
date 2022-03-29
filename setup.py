@@ -40,8 +40,8 @@ setuptools.setup(
         'Operating System :: OS Independent',
     ],
     install_requires=[
-        'd3m==2021.12.19',
-        'd3m-automl-rpc==1.2.0',
+        'd3m',
+        'd3m-automl-rpc',
         'pandas>=1.1.3,<=1.3.4',
         'numpy',
         'scikit-learn',
