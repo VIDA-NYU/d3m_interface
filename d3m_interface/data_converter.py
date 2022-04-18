@@ -70,6 +70,9 @@ def check_problem_config(problem_config):
             'pos_label' not in problem_config['optional']:
         raise ValueError('pos_label parameter is mandatory for f1 and binary problems')
 
+    if 'clustering' and 'num_clusters' not in problem_config['optional']:
+        raise ValueError('num_clusters parameter is mandatory for clustering problems')
+
     return problem_config
 
 
@@ -97,6 +100,15 @@ def create_d3m_problem(dataset, destination_path, problem_config):
     if 'pos_label' in problem_config['optional']:
         metric['posLabel'] = str(problem_config['optional']['pos_label'])
 
+    target = {
+        "targetIndex": 0,
+        "resID": "learningData",
+        "colIndex": problem_config['target_index'],
+        "colName": problem_config['target_column']
+    }
+    if 'num_clusters' in problem_config['optional']:
+        target["numClusters"] = problem_config['optional']['num_clusters']
+
     problem_json = {
         "about": {
             "problemID": "",
@@ -110,14 +122,7 @@ def create_d3m_problem(dataset, destination_path, problem_config):
             "data": [
                 {
                     "datasetID": DATASET_ID,
-                    "targets": [
-                        {
-                            "targetIndex": 0,
-                            "resID": "learningData",
-                            "colIndex": problem_config['target_index'],
-                            "colName": problem_config['target_column']
-                        }
-                    ]
+                    "targets": [target]
                 }
             ],
             "performanceMetrics": [metric]
