@@ -7,6 +7,7 @@ import pandas as pd
 from os.path import join, exists, split, dirname
 from d3m.container import Dataset
 from d3m.utils import path_to_uri
+from d3m.metadata import base as metadata_base
 from d3m.container.utils import save_container
 from d3m.metadata.problem import PerformanceMetricBase, TaskKeywordBase
 
@@ -35,7 +36,7 @@ def dataset_to_d3m(dataset_path, output_folder, problem_config, suffix):
     problem_config = check_problem_config(problem_config)
     dataset_folder = join(output_folder, 'temp', 'dataset_d3mformat', suffix, 'dataset_%s' % suffix)
     problem_folder = join(output_folder, 'temp', 'dataset_d3mformat', suffix, 'problem_%s' % suffix)
-    dataset = create_d3m_dataset(dataset_path, dataset_folder)
+    dataset = create_d3m_dataset(dataset_path, dataset_folder, problem_config)
     create_d3m_problem(dataset['learningData'], problem_folder, problem_config)
 
     return join(output_folder, 'temp', 'dataset_d3mformat', suffix)
@@ -70,19 +71,36 @@ def check_problem_config(problem_config):
             'pos_label' not in problem_config['optional']:
         raise ValueError('pos_label parameter is mandatory for f1 and binary problems')
 
-    if 'clustering' and 'num_clusters' not in problem_config['optional']:
+    if 'clustering' in problem_config['task_keywords'] and 'num_clusters' not in problem_config['optional']:
         raise ValueError('num_clusters parameter is mandatory for clustering problems')
+
+    if 'timeSeries' in problem_config['task_keywords'] and 'forecasting' in problem_config['task_keywords'] and \
+            'time_indicator' not in problem_config['optional']:
+        raise ValueError('time_indicator parameter is mandatory for time-series forecasting problems')
 
     return problem_config
 
 
-def create_d3m_dataset(dataset_path, destination_path):
-    if callable(dataset_path):
+def create_d3m_dataset(dataset_path, destination_path, problem_config):
+    if callable(dataset_path):  # It's a sklearn dataset
         dataset_path = 'sklearn://' + dataset_path.__name__.replace('load_', '')
     if exists(destination_path):
         shutil.rmtree(destination_path)
 
     dataset = Dataset.load(path_to_uri(dataset_path), dataset_id=DATASET_ID)
+
+    if 'time_indicator' in problem_config['optional']:
+        # Time indicator is needed by the primitive that splits time-series datasets in k-folds
+        column_metadata = {
+            'semantic_types': [
+                'https://metadata.datadrivendiscovery.org/types/Time', 'http://schema.org/DateTime',
+                'https://metadata.datadrivendiscovery.org/types/Attribute'
+            ]
+        }
+
+        time_index = dataset['learningData'].columns.get_loc(problem_config['optional']['time_indicator'])
+        dataset.metadata = dataset.metadata.update(('learningData', metadata_base.ALL_ELEMENTS, time_index), column_metadata)
+
     save_container(dataset, destination_path)
 
     return dataset
