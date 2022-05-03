@@ -14,11 +14,11 @@ import pandas as pd
 import d3m_interface.visualization as vis
 from d3m_interface.data_converter import is_d3m_format, is_d3m_collection, dataset_to_d3m, d3mtext_to_dataframe, to_d3m_json
 from d3m_interface.confidence_calculator import create_confidence_pipeline
-from d3m_interface.utils import copy_folder, fix_path_for_docker, is_port_in_use
+from d3m_interface.utils import copy_folder, fix_path_for_docker, is_port_in_use, is_openml_dataset
 from d3m_interface.grpc_client import GrpcClient
 from d3m_interface.pipeline import Pipeline
 from threading import Thread
-from os.path import join, split, exists
+from os.path import join, split, exists, abspath
 from posixpath import join as pjoin
 from IPython.core.getipython import get_ipython
 from d3m.metadata.problem import PerformanceMetric
@@ -312,6 +312,7 @@ class AutoML:
         if automl_id not in AUTOML_DOCKER_IMAGES:
             raise ValueError('Unknown "%s" AutoML, you should choose among: [%s]' % (automl_id, ', '.join(AUTOML_DOCKER_IMAGES)))
 
+        output_folder = abspath(output_folder)  # Make an absolute path
         self.output_folder = output_folder
         self.resource_folder = resource_folder if resource_folder is not None else output_folder
 
@@ -368,6 +369,7 @@ class AutoML:
         :param kwargs: Different arguments for problem's settings (e.g. pos_label for binary problems using F1)
         """
         suffix = 'TRAIN'
+        dataset = abspath(dataset) if not is_openml_dataset(dataset) else dataset
 
         if not is_d3m_format(dataset, suffix):
             self.problem_config = {'target_column': target, 'metric': metric, 'task_keywords': task_keywords,
@@ -482,6 +484,7 @@ class AutoML:
         :returns: A dataframe that contains the predictions with/without the pipeline step outputs
         """
         suffix = 'TEST'
+        #test_dataset = abspath(test_dataset) if not is_openml_dataset(test_dataset) else test_dataset
         dataset_in_container = self.ta2.dataset_in_container
         train_dataset_d3m = pjoin(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
         problem_path = pjoin(dataset_in_container, 'TRAIN/problem_TRAIN/problemDoc.json')
@@ -567,6 +570,7 @@ class AutoML:
         :returns: A tuple holding metric name and score value
         """
         suffix = 'SCORE'
+        test_dataset = abspath(test_dataset) if not is_openml_dataset(test_dataset) else test_dataset
 
         if not is_d3m_format(test_dataset, suffix):
             # D3M format needs TEST and SCORE directories
