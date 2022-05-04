@@ -342,7 +342,7 @@ class AutoML:
                          exclude_primitives=None, include_primitives=None, **kwargs):
         """Perform the search of pipelines
 
-        :param dataset: Path to dataset. It supports D3M dataset, CSV file, OpenML, and Sklearn datasets
+        :param dataset: Path to dataset. It supports CSV file, D3M dataset, OpenML, and Sklearn datasets
         :param time_bound: Limit time in minutes to perform the search
         :param time_bound_run: Limit time in minutes to score a pipeline
         :param target: Column name of the potential target variable for a problem
