@@ -1,7 +1,8 @@
+import json
 import datamart_profiler
 import numpy as np
 import pandas as pd
-from os.path import join
+from os.path import join, dirname
 from d3m.utils import silence
 from d3m_interface.data_converter import create_artificial_d3mtest
 from lime.lime_text import LimeTextExplainer
@@ -9,6 +10,12 @@ from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 
 # PipelineProfiler, DataProfileViewer and VisualTextAnalyzer are imported inside of functions because they raise errors
 # when are running from non-Jupyter/Colab environments (e.g. terminal scripts).
+
+PRIMITIVE_TYPES = {}
+with open(join(dirname(__file__), 'resource', 'primitives_metadata.json')) as fin:
+    primitive_list = json.load(fin)
+    for primitive_info in primitive_list:
+        PRIMITIVE_TYPES[primitive_info['python_path']] = primitive_info['type'].replace('_', ' ').title()
 
 
 def plot_metadata(dataset_path):
@@ -19,9 +26,12 @@ def plot_metadata(dataset_path):
     DataProfileViewer.plot_data_summary(metadata)
 
 
-def plot_comparison_pipelines(pipelines):
+def plot_comparison_pipelines(pipelines, load_primitive_types=True):
     import PipelineProfiler
-    PipelineProfiler.plot_pipeline_matrix(pipelines)
+    if load_primitive_types:
+        PipelineProfiler.plot_pipeline_matrix(pipelines, PRIMITIVE_TYPES)
+    else:
+        PipelineProfiler.plot_pipeline_matrix(pipelines)
 
 
 def plot_text_summary(words_entities):
