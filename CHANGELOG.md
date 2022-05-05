@@ -1,8 +1,13 @@
 Changelog
 =========
 
-0.8.0.dev0 (yyyy-mm-dd)
-------------------------
+0.8.0 (2022-05-05)
+-------------------
+* Add support for raw time-series forecasting datasets.
+* Add support for raw clustering datasets.
+* Allow loading primitive types for PipelineProfiler.
+* Allow using relative paths.
+* Use an example with csv datasets in 'Getting started' section.
 
 
 0.7.1 (2022-03-29)
