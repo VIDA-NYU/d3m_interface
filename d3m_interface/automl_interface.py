@@ -939,7 +939,7 @@ class AutoML:
         suffix = split(dataset)[-1]
 
         if is_d3m_format(dataset, suffix):
-            if is_d3m_collection(join(dataset, 'dataset_%s' % suffix, 'datasetDoc.json'), 'text'):
+            if is_d3m_collection(dataset, suffix, 'text'):
                 dataset = d3mtext_to_dataframe(dataset, suffix, text_column)
             else:
                 dataset = join(dataset, 'dataset_%s' % suffix, 'tables', 'learningData.csv')

@@ -24,9 +24,10 @@ def is_d3m_format(dataset_path, suffix):
     return False
 
 
-def is_d3m_collection(dataset_path, collection_type):
+def is_d3m_collection(dataset_path, suffix, collection_type):
     """Checks whether the given D3M dataset is a "collection".
     """
+    dataset_path = join(dataset_path, 'dataset_%s' % suffix, 'datasetDoc.json')
     with open(dataset_path) as fin:
         dataset_doc = json.load(fin)
         for data_resource in dataset_doc['dataResources']:
