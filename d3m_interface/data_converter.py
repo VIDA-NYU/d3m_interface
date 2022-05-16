@@ -199,10 +199,9 @@ def create_artificial_d3mtest(train_path, artificial_test_path, new_instances, t
     data.to_csv(join(tables_folder, 'learningData.csv'), index=False)
 
 
-def d3mtext_to_dataframe(folder_path, text_column):
+def d3mtext_to_dataframe(folder_path, suffix, text_column):
     """Reads a D3M text dataset into a single DataFrame, by loading the named text files.
     """
-    suffix = split(folder_path)[-1]
     dataframe = pd.read_csv(join(folder_path, 'dataset_%s' % suffix, 'tables', 'learningData.csv'))
     folder_files = join(folder_path, 'dataset_%s' % suffix, 'media')
 
