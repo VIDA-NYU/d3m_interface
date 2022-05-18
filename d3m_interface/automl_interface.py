@@ -373,7 +373,7 @@ class AutoML:
 
         if not is_d3m_format(dataset, suffix):
             self.problem_config = {'target_column': target, 'metric': metric, 'task_keywords': task_keywords,
-                                   'optional': kwargs}
+                                   'extras': kwargs}
             dataset = dataset_to_d3m(dataset, self.output_folder, self.problem_config, suffix)
 
         self.dataset = split(dataset)[0]
