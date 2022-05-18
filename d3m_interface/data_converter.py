@@ -4,12 +4,13 @@ import shutil
 import logging
 import numpy as np
 import pandas as pd
-from os.path import join, exists, split, dirname
+from os.path import join, exists, split, dirname, splitext
 from d3m.container import Dataset
 from d3m.utils import path_to_uri
 from d3m.metadata import base as metadata_base
 from d3m.container.utils import save_container
 from d3m.metadata.problem import PerformanceMetricBase, TaskKeywordBase
+from d3m.container.dataset import FILE_EXTENSIONS
 
 logger = logging.getLogger(__name__)
 DATASET_ID = 'internal_dataset'
@@ -34,12 +35,16 @@ def is_d3m_collection(dataset_path, collection_type):
 
 def dataset_to_d3m(dataset_path, output_folder, problem_config, suffix):
     problem_config = check_problem_config(problem_config)
-    dataset_folder = join(output_folder, 'temp', 'dataset_d3mformat', suffix, 'dataset_%s' % suffix)
-    problem_folder = join(output_folder, 'temp', 'dataset_d3mformat', suffix, 'problem_%s' % suffix)
-    dataset = create_d3m_dataset(dataset_path, dataset_folder, problem_config)
-    create_d3m_problem(dataset['learningData'], problem_folder, problem_config)
+    d3m_root_folder = join(output_folder, 'temp', 'dataset_d3mformat', suffix)
+    d3m_dataset_folder = join(d3m_root_folder, 'dataset_%s' % suffix)
+    d3m_problem_folder = join(d3m_root_folder, 'problem_%s' % suffix)
+    d3m_dataset = create_d3m_dataset(dataset_path, d3m_dataset_folder, problem_config)
+    create_d3m_problem(d3m_dataset['learningData'], d3m_problem_folder, problem_config)
 
-    return join(output_folder, 'temp', 'dataset_d3mformat', suffix)
+    if 'media' in problem_config['extras']:
+        add_media_resource(d3m_dataset['learningData'], d3m_dataset_folder, problem_config, dataset_path, suffix)
+
+    return d3m_root_folder
 
 
 def check_problem_config(problem_config):
@@ -68,28 +73,29 @@ def check_problem_config(problem_config):
 
     #  Check special cases
     if problem_config['metric'] == 'f1' and 'binary' in problem_config['task_keywords'] and \
-            'pos_label' not in problem_config['optional']:
+            'pos_label' not in problem_config['extras']:
         raise ValueError('pos_label parameter is mandatory for f1 and binary problems')
 
-    if 'clustering' in problem_config['task_keywords'] and 'num_clusters' not in problem_config['optional']:
+    if 'clustering' in problem_config['task_keywords'] and 'num_clusters' not in problem_config['extras']:
         raise ValueError('num_clusters parameter is mandatory for clustering problems')
 
     if 'timeSeries' in problem_config['task_keywords'] and 'forecasting' in problem_config['task_keywords'] and \
-            'time_indicator' not in problem_config['optional']:
+            'time_indicator' not in problem_config['extras']:
         raise ValueError('time_indicator parameter is mandatory for time-series forecasting problems')
+
+    if 'text' in problem_config['task_keywords'] and 'media' not in problem_config['extras']:
+        raise ValueError('media parameter is mandatory for text, image, audio, video or time-series problems')
 
     return problem_config
 
 
 def create_d3m_dataset(dataset_path, destination_path, problem_config):
-    if callable(dataset_path):  # It's a sklearn dataset
-        dataset_path = 'sklearn://' + dataset_path.__name__.replace('load_', '')
     if exists(destination_path):
         shutil.rmtree(destination_path)
 
     dataset = Dataset.load(path_to_uri(dataset_path), dataset_id=DATASET_ID)
 
-    if 'time_indicator' in problem_config['optional']:
+    if 'time_indicator' in problem_config['extras']:
         # Time indicator is needed by the primitive that splits time-series datasets in k-folds
         column_metadata = {
             'semantic_types': [
@@ -98,7 +104,7 @@ def create_d3m_dataset(dataset_path, destination_path, problem_config):
             ]
         }
 
-        time_index = dataset['learningData'].columns.get_loc(problem_config['optional']['time_indicator'])
+        time_index = dataset['learningData'].columns.get_loc(problem_config['extras']['time_indicator'])
         dataset.metadata = dataset.metadata.update(('learningData', metadata_base.ALL_ELEMENTS, time_index), column_metadata)
 
     save_container(dataset, destination_path)
@@ -115,8 +121,8 @@ def create_d3m_problem(dataset, destination_path, problem_config):
     os.makedirs(destination_path)
 
     metric = {"metric": problem_config['metric']}
-    if 'pos_label' in problem_config['optional']:
-        metric['posLabel'] = str(problem_config['optional']['pos_label'])
+    if 'pos_label' in problem_config['extras']:
+        metric['posLabel'] = str(problem_config['extras']['pos_label'])
 
     target = {
         "targetIndex": 0,
@@ -124,8 +130,8 @@ def create_d3m_problem(dataset, destination_path, problem_config):
         "colIndex": problem_config['target_index'],
         "colName": problem_config['target_column']
     }
-    if 'num_clusters' in problem_config['optional']:
-        target["numClusters"] = problem_config['optional']['num_clusters']
+    if 'num_clusters' in problem_config['extras']:
+        target["numClusters"] = problem_config['extras']['num_clusters']
 
     problem_json = {
         "about": {
@@ -152,6 +158,37 @@ def create_d3m_problem(dataset, destination_path, problem_config):
 
     with open(join(destination_path, 'problemDoc.json'), 'w') as fout:
         json.dump(problem_json, fout, indent=4)
+
+
+def add_media_resource(dataset, d3m_dataset_folder, problem_config, dataset_path, suffix):
+    with open(join(d3m_dataset_folder, 'datasetDoc.json')) as fin:
+        dataset_json = json.load(fin)
+
+    media_column = problem_config['extras']['media']['column']
+    for column in dataset_json['dataResources'][0]['columns']:
+        if column['colName'] == media_column:
+            column['role'].append('attribute')
+            column['colType'] = 'string'
+            column['refersTo'] = {'resID': '0', 'resObject': 'item'}
+
+    extension = splitext(dataset[media_column].iat[0])[1]  # Only use the first element to get the extension
+    if extension not in FILE_EXTENSIONS:
+        raise ValueError('Unknown "%s" extension, you should choose: [%s]' % (extension, ', '.join(FILE_EXTENSIONS)))
+
+    media_resource = {}
+    media_resource['resID'] = '0'
+    media_resource['resPath'] = 'media'
+    media_resource['resType'] = FILE_EXTENSIONS[extension].split('/')[0]
+    media_resource['resFormat'] = {FILE_EXTENSIONS[extension]: [extension]}
+    media_resource['isCollection'] = True
+    dataset_json['dataResources'].append(media_resource)
+
+    mapping_folders = {'TRAIN': 'folder_train', 'TEST': 'folder_test', 'SCORE': 'folder_test'}
+    os.symlink(join(dirname(dataset_path), problem_config['extras']['media'][mapping_folders[suffix]]),
+               join(d3m_dataset_folder, 'media'))
+
+    with open(join(d3m_dataset_folder, 'datasetDoc.json'), 'w') as fout:
+        json.dump(dataset_json, fout, indent=4)
 
 
 def create_artificial_d3mtest(train_path, artificial_test_path, new_instances, target_column, text_column):
