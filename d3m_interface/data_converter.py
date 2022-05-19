@@ -38,11 +38,14 @@ def dataset_to_d3m(dataset_path, output_folder, problem_config, suffix):
     d3m_root_folder = join(output_folder, 'temp', 'dataset_d3mformat', suffix)
     d3m_dataset_folder = join(d3m_root_folder, 'dataset_%s' % suffix)
     d3m_problem_folder = join(d3m_root_folder, 'problem_%s' % suffix)
-    d3m_dataset = create_d3m_dataset(dataset_path, d3m_dataset_folder, problem_config)
+    d3m_dataset = create_d3m_dataset(dataset_path, d3m_dataset_folder)
     create_d3m_problem(d3m_dataset['learningData'], d3m_problem_folder, problem_config)
 
     if 'media' in problem_config['extras']:
         add_media_resource(d3m_dataset['learningData'], d3m_dataset_folder, problem_config, dataset_path, suffix)
+
+    if 'time_indicator' in problem_config['extras']:
+        add_time_estimator(d3m_dataset_folder, problem_config)
 
     return d3m_root_folder
 
@@ -89,24 +92,11 @@ def check_problem_config(problem_config):
     return problem_config
 
 
-def create_d3m_dataset(dataset_path, destination_path, problem_config):
+def create_d3m_dataset(dataset_path, destination_path):
     if exists(destination_path):
         shutil.rmtree(destination_path)
 
     dataset = Dataset.load(path_to_uri(dataset_path), dataset_id=DATASET_ID)
-
-    if 'time_indicator' in problem_config['extras']:
-        # Time indicator is needed by the primitive that splits time-series datasets in k-folds
-        column_metadata = {
-            'semantic_types': [
-                'https://metadata.datadrivendiscovery.org/types/Time', 'http://schema.org/DateTime',
-                'https://metadata.datadrivendiscovery.org/types/Attribute'
-            ]
-        }
-
-        time_index = dataset['learningData'].columns.get_loc(problem_config['extras']['time_indicator'])
-        dataset.metadata = dataset.metadata.update(('learningData', metadata_base.ALL_ELEMENTS, time_index), column_metadata)
-
     save_container(dataset, destination_path)
 
     return dataset
@@ -186,6 +176,19 @@ def add_media_resource(dataset, d3m_dataset_folder, problem_config, dataset_path
     mapping_folders = {'TRAIN': 'folder_train', 'TEST': 'folder_test', 'SCORE': 'folder_test'}
     os.symlink(join(dirname(dataset_path), problem_config['extras']['media'][mapping_folders[suffix]]),
                join(d3m_dataset_folder, 'media'))
+
+    with open(join(d3m_dataset_folder, 'datasetDoc.json'), 'w') as fout:
+        json.dump(dataset_json, fout, indent=4)
+
+
+def add_time_estimator(d3m_dataset_folder, problem_config):
+    with open(join(d3m_dataset_folder, 'datasetDoc.json')) as fin:
+        dataset_json = json.load(fin)
+
+    time_column = problem_config['extras']['time_indicator']
+    for column in dataset_json['dataResources'][0]['columns']:
+        if column['colName'] == time_column:
+            column['role'] += ['attribute', 'timeIndicator']
 
     with open(join(d3m_dataset_folder, 'datasetDoc.json'), 'w') as fout:
         json.dump(dataset_json, fout, indent=4)
