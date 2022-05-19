@@ -86,9 +86,13 @@ def check_problem_config(problem_config):
             'time_indicator' not in problem_config['extras']:
         raise ValueError('time_indicator parameter is mandatory for time-series forecasting problems')
 
-    if any(x in problem_config['task_keywords'] for x in ['text', 'image', 'audio', 'video', 'timeSeries']) and \
+    if 'timeSeries' in problem_config['task_keywords'] and 'classification' in problem_config['task_keywords'] and \
             'collection' not in problem_config['extras']:
-        raise ValueError('collection parameter is mandatory for text, image, audio, video or time-series problems')
+        raise ValueError('collection parameter is mandatory for time-series classification problems')
+
+    if any(x in problem_config['task_keywords'] for x in ['text', 'image', 'audio', 'video']) and \
+            'collection' not in problem_config['extras']:
+        raise ValueError('collection parameter is mandatory for text, image, audio, or video problems')
 
     return problem_config
 
