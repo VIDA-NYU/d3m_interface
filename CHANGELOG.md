@@ -1,7 +1,9 @@
 Changelog
 =========
-0.9.0.dev0 (yyyy-mm-dd)
--------------------------
+0.9.0 (2022-05-20)
+-------------------
+* Add support for raw datasets of text, image, audio, and video.
+* Add support for raw time-series classification datasets.
 
 
 0.8.0 (2022-05-05)
