@@ -45,7 +45,7 @@ def dataset_to_d3m(dataset_path, output_folder, problem_config, suffix):
         add_collection_resource(d3m_dataset['learningData'], d3m_dataset_folder, problem_config, dataset_path, suffix)
 
     if 'time_indicator' in problem_config['extras']:
-        add_time_estimator(d3m_dataset_folder, problem_config)
+        add_timeseries_info(d3m_dataset_folder, problem_config)
 
     return d3m_root_folder
 
@@ -85,6 +85,10 @@ def check_problem_config(problem_config):
     if 'timeSeries' in problem_config['task_keywords'] and 'forecasting' in problem_config['task_keywords'] and \
             'time_indicator' not in problem_config['extras']:
         raise ValueError('time_indicator parameter is mandatory for time-series forecasting problems')
+
+    if 'timeSeries' in problem_config['task_keywords'] and 'grouped' in problem_config['task_keywords'] and \
+            'grouping_category' not in problem_config['extras']:
+        raise ValueError('grouping_category parameter is mandatory for grouped time-series forecasting problems')
 
     if 'timeSeries' in problem_config['task_keywords'] and 'classification' in problem_config['task_keywords'] and \
             'collection' not in problem_config['extras']:
@@ -186,14 +190,21 @@ def add_collection_resource(dataset, d3m_dataset_folder, problem_config, dataset
         json.dump(dataset_json, fout, indent=4)
 
 
-def add_time_estimator(d3m_dataset_folder, problem_config):
+def add_timeseries_info(d3m_dataset_folder, problem_config):
     with open(join(d3m_dataset_folder, 'datasetDoc.json')) as fin:
         dataset_json = json.load(fin)
 
     time_column = problem_config['extras']['time_indicator']
+    grouping_column = problem_config['extras'].get('grouping_category', None)  # grouping_category can be optional
+
     for column in dataset_json['dataResources'][0]['columns']:
         if column['colName'] == time_column:
             column['role'] += ['attribute', 'timeIndicator']
+            column['colType'] = 'dateTime'
+
+        if column['colName'] == grouping_column:
+            column['role'] += ['attribute', 'suggestedGroupingKey']
+            column['colType'] = 'categorical'
 
     with open(join(d3m_dataset_folder, 'datasetDoc.json'), 'w') as fout:
         json.dump(dataset_json, fout, indent=4)
