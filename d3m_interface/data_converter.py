@@ -4,10 +4,9 @@ import shutil
 import logging
 import numpy as np
 import pandas as pd
-from os.path import join, exists, split, dirname, splitext
+from os.path import join, exists, dirname, splitext
 from d3m.container import Dataset
 from d3m.utils import path_to_uri
-from d3m.metadata import base as metadata_base
 from d3m.container.utils import save_container
 from d3m.metadata.problem import PerformanceMetricBase, TaskKeywordBase
 from d3m.container.dataset import FILE_EXTENSIONS
@@ -53,6 +52,9 @@ def dataset_to_d3m(dataset_path, output_folder, problem_config, suffix):
 
     if 'time_indicator' in problem_config['extras']:
         add_timeseries_info(d3m_dataset_folder, problem_config)
+
+    if 'objectDetection' in problem_config['task_keywords']:
+        modify_indexes(d3m_dataset_folder, problem_config)
 
     return d3m_root_folder
 
@@ -215,6 +217,14 @@ def add_timeseries_info(d3m_dataset_folder, problem_config):
 
     with open(join(d3m_dataset_folder, 'datasetDoc.json'), 'w') as fout:
         json.dump(dataset_json, fout, indent=4)
+
+
+def modify_indexes(d3m_dataset_folder, problem_config):
+    csv_path = join(d3m_dataset_folder, 'tables', 'learningData.csv')
+    data = pd.read_csv(csv_path)
+    collection_column = problem_config['extras']['collection']['column']
+    data['d3mIndex'] = data.groupby(collection_column).ngroup()  # For the same values (e.g. images), the same indexes
+    data.to_csv(csv_path, index=False)
 
 
 def create_artificial_d3mtest(train_path, artificial_test_path, new_instances, target_column, text_column):
