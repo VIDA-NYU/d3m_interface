@@ -484,7 +484,7 @@ class AutoML:
         :returns: A dataframe that contains the predictions with/without the pipeline step outputs
         """
         suffix = 'TEST'
-        #test_dataset = abspath(test_dataset) if not is_openml_dataset(test_dataset) else test_dataset
+        test_dataset = abspath(test_dataset) if not is_openml_dataset(test_dataset) else test_dataset
         dataset_in_container = self.ta2.dataset_in_container
         train_dataset_d3m = pjoin(dataset_in_container, 'TRAIN/dataset_TRAIN/datasetDoc.json')
         problem_path = pjoin(dataset_in_container, 'TRAIN/problem_TRAIN/problemDoc.json')
