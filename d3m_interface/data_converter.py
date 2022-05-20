@@ -17,13 +17,18 @@ DATASET_ID = 'internal_dataset'
 
 
 def is_d3m_format(dataset_path, suffix):
+    """Checks whether the given dataset is in D3M format, or if it needs conversion.
+    """
     if isinstance(dataset_path, str) and exists(join(dataset_path, 'dataset_%s' % suffix, 'datasetDoc.json')):
         return True
 
     return False
 
 
-def is_d3m_collection(dataset_path, collection_type):
+def is_d3m_collection(dataset_path, suffix, collection_type):
+    """Checks whether the given D3M dataset is a "collection".
+    """
+    dataset_path = join(dataset_path, 'dataset_%s' % suffix, 'datasetDoc.json')
     with open(dataset_path) as fin:
         dataset_doc = json.load(fin)
         for data_resource in dataset_doc['dataResources']:
@@ -34,6 +39,8 @@ def is_d3m_collection(dataset_path, collection_type):
 
 
 def dataset_to_d3m(dataset_path, output_folder, problem_config, suffix):
+    """Converts a "raw" dataset to D3M format and returns the temporary dataset directory.
+    """
     problem_config = check_problem_config(problem_config)
     d3m_root_folder = join(output_folder, 'temp', 'dataset_d3mformat', suffix)
     d3m_dataset_folder = join(d3m_root_folder, 'dataset_%s' % suffix)
@@ -249,8 +256,9 @@ def create_artificial_d3mtest(train_path, artificial_test_path, new_instances, t
     data.to_csv(join(tables_folder, 'learningData.csv'), index=False)
 
 
-def d3mtext_to_dataframe(folder_path, text_column):
-    suffix = split(folder_path)[-1]
+def d3mtext_to_dataframe(folder_path, suffix, text_column):
+    """Reads a D3M text dataset into a single DataFrame, by loading the named text files.
+    """
     dataframe = pd.read_csv(join(folder_path, 'dataset_%s' % suffix, 'tables', 'learningData.csv'))
     folder_files = join(folder_path, 'dataset_%s' % suffix, 'media')
 

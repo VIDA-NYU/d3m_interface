@@ -766,7 +766,7 @@ class AutoML:
         suffix = split(dataset)[-1]
 
         if is_d3m_format(dataset, suffix):
-            dataframe = d3mtext_to_dataframe(dataset, text_column)
+            dataframe = d3mtext_to_dataframe(dataset, suffix, text_column)
         else:
             dataframe = pd.read_csv(dataset, index_col=False)
 
@@ -939,8 +939,8 @@ class AutoML:
         suffix = split(dataset)[-1]
 
         if is_d3m_format(dataset, suffix):
-            if is_d3m_collection(join(dataset, 'dataset_%s' % suffix, 'datasetDoc.json'), 'text'):
-                dataset = d3mtext_to_dataframe(dataset, text_column)
+            if is_d3m_collection(dataset, suffix, 'text'):
+                dataset = d3mtext_to_dataframe(dataset, suffix, text_column)
             else:
                 dataset = join(dataset, 'dataset_%s' % suffix, 'tables', 'learningData.csv')
 
